@@ -1,0 +1,14 @@
+accelerate==1.15.0
+beautifulsoup4==4.15.0
+bitsandbytes==0.50.2
+deeplake==3.9.52
+deepspeed==0.19.7
+neural_compressor==3.9
+numpy==2.5.3
+onnx==1.23.0
+openai==3.17.0
+pandas==3.0.6
+requests==2.34.2
+scipy==1.18.1
+tqdm==4.70.1
+transformers==5.17.0
