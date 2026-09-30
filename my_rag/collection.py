@@ -57,6 +57,36 @@ WIKI_URLS: list[str] = [
     "https://en.wikipedia.org/wiki/Gaia_(spacecraft)",
 ]
 
+#: Drone/UAV resources collected by the book's chapter 3 notebook. Unlike
+#: chapter 2 this mixes Wikipedia with vendor/docs pages (GitHub, TensorFlow,
+#: PyTorch, arxiv, ...), so parsing falls back to a generic content container.
+DRONE_URLS: list[str] = [
+    "https://github.com/VisDrone/VisDrone-Dataset",
+    "https://paperswithcode.com/dataset/visdrone",
+    "https://openaccess.thecvf.com/content_ECCVW_2018/papers/11133/Zhu_VisDrone-DET2018_The_Vision_Meets_Drone_Object_Detection_in_Image_Challenge_ECCVW_2018_paper.pdf",
+    "https://github.com/VisDrone/VisDrone2018-MOT-toolkit",
+    "https://en.wikipedia.org/wiki/Object_detection",
+    "https://en.wikipedia.org/wiki/Computer_vision",
+    "https://en.wikipedia.org/wiki/Convolutional_neural_network",
+    "https://en.wikipedia.org/wiki/Unmanned_aerial_vehicle",
+    "https://www.faa.gov/uas/",
+    "https://www.tensorflow.org/",
+    "https://pytorch.org/",
+    "https://keras.io/",
+    "https://arxiv.org/abs/1804.06985",
+    "https://arxiv.org/abs/2202.11983",
+    "https://motchallenge.net/",
+    "http://www.cvlibs.net/datasets/kitti/",
+    "https://www.dronedeploy.com/",
+    "https://www.dji.com/",
+    "https://arxiv.org/",
+    "https://openaccess.thecvf.com/",
+    "https://roboflow.com/",
+    "https://www.kaggle.com/",
+    "https://paperswithcode.com/",
+    "https://github.com/",
+]
+
 #: Headings whose section (and everything after it) is discarded.
 STRIP_SECTIONS: tuple[str, ...] = ("References", "Bibliography", "External links", "See also")
 
@@ -68,6 +98,9 @@ _CITATION_RE = re.compile(r"\[\s*\d+\s*\]")
 
 #: Where ``collect`` writes by default (git-ignored, like the rest of ``data/raw``).
 DEFAULT_OUTPUT = Path("data/raw/llm.md")
+
+#: Where chapter 3's drone/UAV corpus is written by default.
+DEFAULT_DRONE_OUTPUT = Path("data/raw/drone.md")
 
 #: Wikipedia asks clients to identify themselves.
 _HEADERS = {"User-Agent": "my_rag/0.1 (study project; RAG-Driven-Generative-AI chapter 2)"}
@@ -101,22 +134,34 @@ def strip_sections(container: Tag) -> None:
 
 
 def _article_title(soup: BeautifulSoup) -> str:
-    """Return the page's display title (the ``<h1 id="firstHeading">`` text)."""
-    heading = soup.find(id="firstHeading")
+    """Return the page's display title.
+
+    Wikipedia exposes it as ``<h1 id="firstHeading">``; other sites (chapter 3's
+    vendor/docs pages) only have the ``<title>`` element.
+    """
+    heading = soup.find(id="firstHeading") or soup.find("title")
     if heading is None:
         return ""
     return re.sub(r"\s+", " ", heading.get_text(separator=" ")).strip()
 
 
 def parse_article(html: str) -> tuple[str, str]:
-    """Return ``(title, body)`` for a Wikipedia HTML page, with noise stripped."""
+    """Return ``(title, body)`` for a web page, with noise stripped.
+
+    Wikipedia's body lives in ``mw-parser-output``; chapter 3's non-Wikipedia
+    pages fall back to a generic ``div#content`` (the book's fallback) and then
+    to ``<body>`` so vendor/docs pages are still collected.
+    """
     soup = BeautifulSoup(html, "html.parser")
     containers = soup.find_all("div", {"class": ARTICLE_CONTAINER})
-    if not containers:
-        raise ValueError(f"no article body found (missing {ARTICLE_CONTAINER!r} container)")
-    # Some pages carry a small extra mw-parser-output stub (e.g. a floating box);
-    # the article body is the largest one.
-    container = max(containers, key=lambda element: len(element.get_text()))
+    if containers:
+        # Some pages carry a small extra mw-parser-output stub (e.g. a floating
+        # box); the article body is the largest one.
+        container = max(containers, key=lambda element: len(element.get_text()))
+    else:
+        container = soup.find("div", {"id": "content"}) or soup.find("body")
+    if container is None:
+        raise ValueError("no article body found")
     strip_sections(container)
     return _article_title(soup), clean_text(container.get_text(separator=" ", strip=True))
 

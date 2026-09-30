@@ -114,6 +114,28 @@ no `ACTIVELOOP_TOKEN` is needed; re-running `--embed` rebuilds it. A store built
 with one embedding model can only be queried with the same model/dimension. See
 `notebooks/02_data_embeddings_generation/README.md` for the notebook mapping.
 
+### Chapter 3 — LlamaIndex index-based semantic search
+
+Builds on LlamaIndex: collect the book's drone/UAV corpus, index it, and query it
+through four index types (the vector one persists embeddings in a local Deep Lake
+store, as chapter 2 does):
+
+```bash
+python -m my_rag --collect --corpus drone                      # -> data/raw/drone.md
+python -m my_rag --rag index --index-type vector "How do drones identify vehicles?"
+python -m my_rag --rag index --index-type tree   "How do drones identify vehicles?"
+python -m my_rag --rag index --index-type list   "How do drones identify vehicles?"
+python -m my_rag --rag index --index-type keyword "How do drones identify vehicles?"
+python -m my_rag --rag index --index-type vector --show-context "How do drones identify vehicles?"
+```
+
+`--rag index` reads `--output` (default `data/raw/drone.md`) and, for the vector
+type, writes to `--vector-store` (default `data/processed/index_store`);
+`--top-k` is the book's `similarity_top_k` (default 3). Chapter 3 uses the Ollama
+LlamaIndex integrations, so it is scoped to `--provider ollama` (the default) —
+the OpenAI integrations pin `openai<3`, which would downgrade the version used
+elsewhere. See `notebooks/03_deep_lake_llamaindex/README.md` for the mapping.
+
 Configuration resolves in this order: CLI flags → environment → per-provider
 defaults (`my_rag/config.py`). `MY_RAG_PROVIDER`, `MY_RAG_MODEL`,
 `MY_RAG_EMBEDDING_MODEL`, `MY_RAG_TEMPERATURE`, `MY_RAG_THINK`, `OPENAI_BASE_URL`,
@@ -137,7 +159,8 @@ Extension points:
 ## Layout
 
 - `my_rag/` — the application package (`config`, `llm`, `embeddings`,
-  `vectorstore`, `collection`, `corpus`, `pipeline`, `retrieval`, `cli`).
+  `vectorstore`, `indexing`, `collection`, `corpus`, `pipeline`, `retrieval`,
+  `cli`).
 - `notebooks/01_rag_overview` … `notebooks/10_video_stock_production` — one
   per chapter of the reference book, see each folder's `README.md`.
 - `commons/` — shared helpers (API keys, HTTP sessions) extracted as you go.
@@ -147,7 +170,9 @@ Extension points:
 ## Key dependencies
 
 `deeplake`, `openai`, `transformers`, `numpy` — core RAG stack from the
-reference book. `accelerate`, `deepspeed`, `bitsandbytes`, `neural_compressor`,
+reference book; chapter 3 adds `llama-index-core` with the Ollama LLM/embedding
+and Deep Lake vector-store integrations. `accelerate`, `deepspeed`,
+`bitsandbytes`, `neural_compressor`,
 `onnx` are for local Hugging Face model training/fine-tuning and inference
 optimization if you extend beyond the book's notebooks (note: `deepspeed`/
 `bitsandbytes` target Linux+CUDA primarily — expect limited functionality on

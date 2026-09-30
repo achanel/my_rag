@@ -33,6 +33,11 @@ PROVIDER_DEFAULTS: dict[str, dict[str, str]] = {
 #: Where chapter 2 embeddings are indexed (git-ignored, like the rest of ``data/``).
 DEFAULT_VECTOR_STORE = Path("data/processed/vector_store")
 
+#: Where chapter 3's LlamaIndex/Deep Lake vector index persists (git-ignored).
+#: Kept apart from ``DEFAULT_VECTOR_STORE``: the LlamaIndex integration uses a
+#: different dataset schema than chapter 2's raw ``deeplake.VectorStore``.
+DEFAULT_INDEX_STORE = Path("data/processed/index_store")
+
 #: Character chunk size for the vector store, matching the book's notebook.
 CHUNK_SIZE = 1000
 

@@ -24,6 +24,7 @@ citation markers, and write every article to one Markdown file as a `#` heading
 ```bash
 python -m my_rag --collect                       # -> data/raw/llm.md
 python -m my_rag --collect --output my_corpus.md
+rm -rf data/raw/llm.md data/raw/my_corpus.md      # cleanup (part 2 re-collects)
 ```
 
 The URL list is `my_rag.collection.WIKI_URLS`; call
@@ -60,6 +61,7 @@ Two deliberate substitutions:
 python -m my_rag --collect                 # part 1: -> data/raw/llm.md
 python -m my_rag --embed                    # part 2: embed it into data/processed/vector_store
 python -m my_rag --embed --output my_corpus.md --vector-store /tmp/vs --chunk-size 500
+rm -rf data/raw/llm.md data/raw/my_corpus.md /tmp/vs   # cleanup (keep the store for part 3)
 ```
 
 **Part 3 — Augmented generation** reuses the existing pipeline with the vector
@@ -71,6 +73,7 @@ default is local Ollama). The book's notebooks 2 and 3 are combined into one
 ```bash
 python -m my_rag --rag embeddings "Tell me about space exploration on the Moon and Mars."
 python -m my_rag --rag embeddings --show-context "Tell me about space exploration on the Moon and Mars."
+rm -rf data/processed/vector_store          # cleanup: drop the Deep Lake store
 ```
 
 `--show-context` prints the retrieved chunk(s) before the answer (the store's

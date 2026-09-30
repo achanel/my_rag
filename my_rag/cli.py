@@ -24,6 +24,12 @@ Chapter 1, part 2 adds the retrieval-augmented variants::
     python -m my_rag --rag naive "define a rag store"
     python -m my_rag --rag advanced "define a rag store"
     python -m my_rag --rag modular --method vector "define a rag store"
+
+Chapter 3 adds LlamaIndex index-based semantic search (Deep Lake + Ollama)::
+
+    python -m my_rag --collect --corpus drone
+    python -m my_rag --rag index --index-type vector "How do drones identify vehicles?"
+    python -m my_rag --rag index --index-type tree --show-context "..."
 """
 from __future__ import annotations
 
@@ -33,9 +39,10 @@ import textwrap
 from pathlib import Path
 from typing import Optional
 
+from .collection import DEFAULT_DRONE_OUTPUT
 from .collection import DEFAULT_OUTPUT as DEFAULT_CORPUS
-from .collection import WIKI_URLS, collect
-from .config import CHUNK_SIZE, DEFAULT_VECTOR_STORE, Settings, load_env
+from .collection import DRONE_URLS, WIKI_URLS, collect
+from .config import CHUNK_SIZE, DEFAULT_INDEX_STORE, DEFAULT_VECTOR_STORE, Settings, load_env
 from .corpus import DB_RECORDS
 from .embeddings import create_embedding_function
 from .llm import LLM, available_providers, create_llm
@@ -43,6 +50,9 @@ from .pipeline import RAGPipeline
 from .retrieval import create_retriever
 
 DEFAULT_QUERY = "define a rag store"
+
+#: The book's chapter 3 question over the drone/UAV corpus.
+DEFAULT_INDEX_QUERY = "How do drones identify vehicles?"
 
 
 def format_response(response: str, width: int = 80) -> str:
@@ -85,8 +95,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "query",
         nargs="?",
-        default=DEFAULT_QUERY,
-        help=f"question to send (default: {DEFAULT_QUERY!r})",
+        default=None,
+        help=f"question to send (default: {DEFAULT_QUERY!r}; "
+        f"for --rag index: {DEFAULT_INDEX_QUERY!r})",
     )
     parser.add_argument("--provider", help="LLM provider (env MY_RAG_PROVIDER; default: ollama)")
     parser.add_argument("--model", help="model name (env MY_RAG_MODEL; default: provider default)")
@@ -112,16 +123,28 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--rag",
-        choices=["none", "naive", "advanced", "modular", "embeddings"],
+        choices=["none", "naive", "advanced", "modular", "embeddings", "index"],
         default="none",
         help="RAG variant: none (plain generation), naive (keyword), advanced (TF-IDF vector/index), "
-        "modular (selectable method), embeddings (vector store search)",
+        "modular (selectable method), embeddings (vector store search), index (LlamaIndex index, ch. 3)",
     )
     parser.add_argument(
         "--method",
         choices=["keyword", "vector", "indexed"],
         default="indexed",
         help="retrieval method for --rag advanced|modular (default: indexed)",
+    )
+    parser.add_argument(
+        "--index-type",
+        choices=["vector", "tree", "list", "keyword"],
+        default="vector",
+        help="LlamaIndex index for --rag index (default: vector)",
+    )
+    parser.add_argument(
+        "--top-k",
+        type=int,
+        default=3,
+        help="similarity_top_k for --rag index (default: 3, the book's value)",
     )
     parser.add_argument(
         "--show-context",
@@ -131,11 +154,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--collect",
         action="store_true",
-        help="fetch the chapter 2 Wikipedia corpus and exit",
+        help="fetch a corpus and exit (chapter 2 Wikipedia or chapter 3 drone)",
+    )
+    parser.add_argument(
+        "--corpus",
+        choices=["wiki", "drone"],
+        default="wiki",
+        help="corpus for --collect: wiki (ch. 2) or drone (ch. 3, default: wiki)",
     )
     parser.add_argument(
         "--output",
-        help=f"corpus path for --collect, or corpus to embed for --embed (default: {DEFAULT_CORPUS})",
+        help=f"corpus path for --collect, or corpus to embed/index for --embed/--rag index "
+        f"(default: {DEFAULT_CORPUS}; drone: {DEFAULT_DRONE_OUTPUT})",
     )
     parser.add_argument(
         "--embed",
@@ -144,7 +174,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--vector-store",
-        help=f"vector store path for --embed / --rag embeddings (default: {DEFAULT_VECTOR_STORE})",
+        help=f"vector store path for --embed / --rag embeddings, or LlamaIndex Deep Lake store "
+        f"for --rag index (default: {DEFAULT_VECTOR_STORE}; index: {DEFAULT_INDEX_STORE})",
     )
     parser.add_argument(
         "--chunk-size",
@@ -174,16 +205,15 @@ def _print_model_hint(llm: LLM, settings: Settings) -> None:
         print("      pick one with: --model <name>", file=sys.stderr)
 
 
-def collect_corpus(output: Optional[str]) -> int:
-    """Fetch the chapter 2 Wikipedia corpus and write it to ``output``."""
-    path = Path(output) if output else DEFAULT_CORPUS
-    print(f"collecting {len(WIKI_URLS)} articles ...", file=sys.stderr)
+def collect_corpus(path: Path, urls: list[str]) -> int:
+    """Fetch ``urls`` and write the corpus to ``path``."""
+    print(f"collecting {len(urls)} articles ...", file=sys.stderr)
     try:
-        result = collect(output=path, progress=lambda line: print(line, file=sys.stderr))
+        result = collect(urls=urls, output=path, progress=lambda line: print(line, file=sys.stderr))
     except OSError as exc:  # e.g. unwritable output path
         print(f"error: {exc}", file=sys.stderr)
         return 1
-    print(f"wrote {result.path} ({len(result.collected)}/{len(WIKI_URLS)} articles)", file=sys.stderr)
+    print(f"wrote {result.path} ({len(result.collected)}/{len(urls)} articles)", file=sys.stderr)
     return 1 if result.failed else 0
 
 
@@ -211,16 +241,49 @@ def embed_corpus(corpus: Path, store_path: Path, chunk_size: int, settings: Sett
     return 0
 
 
+def run_index_query(args, settings: Settings) -> int:
+    """Build a LlamaIndex index over the corpus and answer ``args.query`` (ch. 3)."""
+    from .indexing import IndexQueryEngine, load_documents  # lazy: LlamaIndex is heavy
+
+    corpus = Path(args.output) if args.output else DEFAULT_DRONE_OUTPUT
+    store_path = Path(args.vector_store) if args.vector_store else DEFAULT_INDEX_STORE
+    print(f"rag: index ({args.index_type}, top_k={args.top_k})", file=sys.stderr)
+    print(f"loading {corpus} ...", file=sys.stderr)
+    try:
+        documents = load_documents(corpus)
+        engine = IndexQueryEngine(
+            args.index_type, documents, settings, vector_store_path=store_path, top_k=args.top_k
+        )
+        if args.show_context:
+            print("Retrieved context:")
+            print("---------------")
+            for text in engine.retrieve(args.query):
+                print(textwrap.fill(text, width=args.width))
+                print()
+            print("---------------")
+        answer = engine.query(args.query)
+    except Exception as exc:  # missing corpus, Ollama unreachable, bad model, ...
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"indexed {len(documents)} documents in {answer.elapsed:.2f}s", file=sys.stderr)
+    print(format_response(answer.response, width=args.width))
+    return 0
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.query is None:
+        args.query = DEFAULT_INDEX_QUERY if args.rag == "index" else DEFAULT_QUERY
 
     if args.list_providers:
         print("\n".join(available_providers()))
         return 0
 
     if args.collect:
-        return collect_corpus(args.output)
+        if args.corpus == "drone":
+            return collect_corpus(Path(args.output) if args.output else DEFAULT_DRONE_OUTPUT, DRONE_URLS)
+        return collect_corpus(Path(args.output) if args.output else DEFAULT_CORPUS, WIKI_URLS)
 
     load_env()
     settings = Settings.from_env(
@@ -235,6 +298,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         store_path = Path(args.vector_store) if args.vector_store else DEFAULT_VECTOR_STORE
         corpus = Path(args.output) if args.output else DEFAULT_CORPUS
         return embed_corpus(corpus, store_path, args.chunk_size, settings)
+
+    if args.rag == "index":
+        return run_index_query(args, settings)
 
     info = f"[{settings.provider}] {settings.model} @ {settings.base_url}"
     if settings.provider == "ollama":
