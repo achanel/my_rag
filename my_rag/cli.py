@@ -8,6 +8,17 @@ Examples::
     python -m my_rag --think "why does RAG reduce hallucinations?"
     python -m my_rag --list-providers
 
+Chapter 2, part 1 (data collection) fetches the Wikipedia corpus::
+
+    python -m my_rag --collect
+    python -m my_rag --collect --output data/raw/corpus.md
+
+Chapter 2, part 2 (embeddings + vector store) embeds that corpus into a local
+Deep Lake store and retrieves from it::
+
+    python -m my_rag --embed
+    python -m my_rag --rag embeddings "Tell me about space exploration on the Moon and Mars."
+
 Chapter 1, part 2 adds the retrieval-augmented variants::
 
     python -m my_rag --rag naive "define a rag store"
@@ -19,10 +30,14 @@ from __future__ import annotations
 import argparse
 import sys
 import textwrap
+from pathlib import Path
 from typing import Optional
 
-from .config import Settings, load_env
+from .collection import DEFAULT_OUTPUT as DEFAULT_CORPUS
+from .collection import WIKI_URLS, collect
+from .config import CHUNK_SIZE, DEFAULT_VECTOR_STORE, Settings, load_env
 from .corpus import DB_RECORDS
+from .embeddings import create_embedding_function
 from .llm import LLM, available_providers, create_llm
 from .pipeline import RAGPipeline
 from .retrieval import create_retriever
@@ -65,7 +80,7 @@ def stream_response(pipeline: RAGPipeline, query: str) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="my_rag",
-        description="Chapter 1 RAG foundations: retrieval -> augmentation -> generation.",
+        description="RAG playground: retrieval -> augmentation -> generation (ch. 1) and data collection (ch. 2).",
     )
     parser.add_argument(
         "query",
@@ -97,9 +112,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--rag",
-        choices=["none", "naive", "advanced", "modular"],
+        choices=["none", "naive", "advanced", "modular", "embeddings"],
         default="none",
-        help="RAG variant: none (plain generation), naive (keyword), advanced (TF-IDF vector/index), modular (selectable method)",
+        help="RAG variant: none (plain generation), naive (keyword), advanced (TF-IDF vector/index), "
+        "modular (selectable method), embeddings (vector store search)",
     )
     parser.add_argument(
         "--method",
@@ -111,6 +127,30 @@ def build_parser() -> argparse.ArgumentParser:
         "--show-context",
         action="store_true",
         help="print the retrieved record(s) before the answer",
+    )
+    parser.add_argument(
+        "--collect",
+        action="store_true",
+        help="fetch the chapter 2 Wikipedia corpus and exit",
+    )
+    parser.add_argument(
+        "--output",
+        help=f"corpus path for --collect, or corpus to embed for --embed (default: {DEFAULT_CORPUS})",
+    )
+    parser.add_argument(
+        "--embed",
+        action="store_true",
+        help="embed the collected corpus into the vector store and exit (chapter 2, part 2)",
+    )
+    parser.add_argument(
+        "--vector-store",
+        help=f"vector store path for --embed / --rag embeddings (default: {DEFAULT_VECTOR_STORE})",
+    )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=CHUNK_SIZE,
+        help=f"character chunk size for --embed (default: {CHUNK_SIZE})",
     )
     parser.add_argument("--list-providers", action="store_true", help="list registered providers and exit")
     return parser
@@ -134,6 +174,43 @@ def _print_model_hint(llm: LLM, settings: Settings) -> None:
         print("      pick one with: --model <name>", file=sys.stderr)
 
 
+def collect_corpus(output: Optional[str]) -> int:
+    """Fetch the chapter 2 Wikipedia corpus and write it to ``output``."""
+    path = Path(output) if output else DEFAULT_CORPUS
+    print(f"collecting {len(WIKI_URLS)} articles ...", file=sys.stderr)
+    try:
+        result = collect(output=path, progress=lambda line: print(line, file=sys.stderr))
+    except OSError as exc:  # e.g. unwritable output path
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"wrote {result.path} ({len(result.collected)}/{len(WIKI_URLS)} articles)", file=sys.stderr)
+    return 1 if result.failed else 0
+
+
+def embed_corpus(corpus: Path, store_path: Path, chunk_size: int, settings: Settings) -> int:
+    """Embed ``corpus`` into the Deep Lake vector store at ``store_path`` (ch. 2, part 2)."""
+    from .vectorstore import DeepLakeVectorStore  # lazy: Deep Lake is a heavy import
+
+    if not corpus.is_file():
+        print(f"error: corpus {corpus} not found; run: python -m my_rag --collect", file=sys.stderr)
+        return 1
+    embedding_function = create_embedding_function(settings)
+    print(
+        f"embedding {corpus} -> {store_path} (model: {settings.embedding_model}) ...",
+        file=sys.stderr,
+    )
+    try:
+        result = DeepLakeVectorStore(store_path, embedding_function, chunk_size=chunk_size).build(corpus)
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    except Exception as exc:  # embedding endpoint unreachable, model missing, ...
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"wrote {result.chunks} vectors to {result.path}", file=sys.stderr)
+    return 0
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -141,6 +218,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.list_providers:
         print("\n".join(available_providers()))
         return 0
+
+    if args.collect:
+        return collect_corpus(args.output)
 
     load_env()
     settings = Settings.from_env(
@@ -150,6 +230,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         temperature=args.temperature,
         think=args.think,
     )
+
+    if args.embed:
+        store_path = Path(args.vector_store) if args.vector_store else DEFAULT_VECTOR_STORE
+        corpus = Path(args.output) if args.output else DEFAULT_CORPUS
+        return embed_corpus(corpus, store_path, args.chunk_size, settings)
 
     info = f"[{settings.provider}] {settings.model} @ {settings.base_url}"
     if settings.provider == "ollama":
@@ -164,14 +249,25 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
-    try:
-        retriever = create_retriever(args.rag, DB_RECORDS, method=args.method)
-    except ValueError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 1
-    if retriever is not None:
-        mode = args.method if args.rag in {"advanced", "modular"} else "keyword"
-        print(f"rag: {args.rag} (retrieval: {mode})", file=sys.stderr)
+    if args.rag == "embeddings":
+        from .vectorstore import open_vector_store  # lazy: Deep Lake is a heavy import
+
+        store_path = Path(args.vector_store) if args.vector_store else DEFAULT_VECTOR_STORE
+        try:
+            retriever = open_vector_store(store_path, create_embedding_function(settings))
+        except OSError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        print(f"rag: embeddings (retrieval: {settings.embedding_model})", file=sys.stderr)
+    else:
+        try:
+            retriever = create_retriever(args.rag, DB_RECORDS, method=args.method)
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        if retriever is not None:
+            mode = args.method if args.rag in {"advanced", "modular"} else "keyword"
+            print(f"rag: {args.rag} (retrieval: {mode})", file=sys.stderr)
 
     pipeline = RAGPipeline(llm, retriever)
     try:

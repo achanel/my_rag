@@ -24,7 +24,7 @@ cp .env.example .env   # fill in OPENAI_API_KEY / ACTIVELOOP_TOKEN / PINECONE_AP
 ```bash
 ollama serve                  # or launch Ollama.app
 ollama pull qwen2.5:3b        # text generation (light; qwen3:8b if you have RAM)
-ollama pull nomic-embed-text  # embeddings (bge-m3 for Russian/multilingual data)
+ollama pull all-minilm        # embeddings (384-dim, ~45 MB; bge-m3 for multilingual/Russian)
 ollama pull gemma3:12b        # vision, chapter 4 only
 ```
 
@@ -35,13 +35,13 @@ names in the notebooks:
 | OpenAI (book) | Ollama |
 |---|---|
 | `gpt-4o`, `gpt-4o-mini`, … | `qwen2.5:3b` (see the size note below) |
-| `text-embedding-3-small`, `text-embedding-ada-002` | `nomic-embed-text` |
+| `text-embedding-3-small`, `text-embedding-ada-002` | `all-minilm` (or `nomic-embed-text`) |
 | vision requests (ch. 4) | `gemma3:12b` |
 
 Caveats:
-- Embedding size differs (OpenAI 1536, `nomic-embed-text` 768, `bge-m3`
-  1024). The book's prebuilt Deep Lake datasets can't be queried with local
-  embeddings — re-embed your data with the same model you query with, and
+- Embedding size differs (OpenAI 1536, `all-minilm` 384, `nomic-embed-text` 768,
+  `bge-m3` 1024). The book's prebuilt Deep Lake datasets can't be queried with
+  local embeddings — re-embed your data with the same model you query with, and
   create Pinecone indexes with the matching dimension.
 - LlamaIndex (ch. 3, 7): use `llama-index-llms-ollama` /
   `llama-index-embeddings-ollama`.
@@ -90,26 +90,54 @@ thinking is **off by default** for Ollama (`think=off` in the header line);
 pass `--think` to turn it on. `--no-stream` restores the wrapped book-style
 framing.
 
+### Chapter 2 — data collection, embeddings + vector store
+
+Part 1 collects the corpus; part 2 embeds it into a local **Deep Lake**
+(Activeloop) vector store; part 3 reuses the pipeline with that store as the
+retriever. Embeddings come from the same OpenAI-compatible endpoint as the LLM —
+by default the free local `all-minilm` (384-dim) via Ollama instead of OpenAI's
+`text-embedding-3-small`:
+
+```bash
+python -m my_rag --collect                 # part 1: -> data/raw/llm.md
+python -m my_rag --collect --output my_corpus.md          # custom corpus path
+python -m my_rag --embed                    # part 2: -> data/processed/vector_store
+python -m my_rag --embed --output my_corpus.md --vector-store /tmp/vs --chunk-size 500
+python -m my_rag --rag embeddings "Tell me about space exploration on the Moon and Mars."
+python -m my_rag --rag embeddings --show-context "…"   # print the retrieved chunk(s)
+```
+
+`--embed` reads `--output` (default `data/raw/llm.md`) and writes to
+`--vector-store` (default `data/processed/vector_store`), chunking by
+`--chunk-size` characters (default 1000) as the book does. The store is local, so
+no `ACTIVELOOP_TOKEN` is needed; re-running `--embed` rebuilds it. A store built
+with one embedding model can only be queried with the same model/dimension. See
+`notebooks/02_data_embeddings_generation/README.md` for the notebook mapping.
+
 Configuration resolves in this order: CLI flags → environment → per-provider
 defaults (`my_rag/config.py`). `MY_RAG_PROVIDER`, `MY_RAG_MODEL`,
-`MY_RAG_TEMPERATURE`, `MY_RAG_THINK`, `OPENAI_BASE_URL`, `OPENAI_API_KEY` are
-read from `.env`.
+`MY_RAG_EMBEDDING_MODEL`, `MY_RAG_TEMPERATURE`, `MY_RAG_THINK`, `OPENAI_BASE_URL`,
+`OPENAI_API_KEY` are read from `.env`.
 
 Extension points:
 
 - **LLM providers** — subclass `my_rag.llm.LLM` and register a factory with
   `@register_provider("name")`; `ollama` and `openai` already share the
   OpenAI-compatible client.
+- **Embeddings** — `my_rag.embeddings.OpenAICompatibleEmbedding` is the
+  `embedding_function` the vector store calls; `create_embedding_function(settings)`
+  builds it from configuration.
 - **Retrieval** — `my_rag.retrieval` ships the chapter 1, part 2 retrievers
   (`KeywordRetriever`, `VectorRetriever`, `IndexRetriever`, `ModularRetriever`);
-  `create_retriever(variant, records, method=…)` builds one by name. Pass any
-  object implementing the `my_rag.pipeline.Retriever` protocol to `RAGPipeline`
-  to add your own; without one the pipeline does plain generation (part 1).
+  `create_retriever(variant, records, method=…)` builds one by name. The chapter 2
+  `DeepLakeVectorStore` also implements `Retriever`. Pass any object implementing
+  the `my_rag.pipeline.Retriever` protocol to `RAGPipeline` to add your own;
+  without one the pipeline does plain generation (part 1).
 
 ## Layout
 
-- `my_rag/` — the application package (`config`, `llm`, `corpus`, `pipeline`,
-  `retrieval`, `cli`).
+- `my_rag/` — the application package (`config`, `llm`, `embeddings`,
+  `vectorstore`, `collection`, `corpus`, `pipeline`, `retrieval`, `cli`).
 - `notebooks/01_rag_overview` … `notebooks/10_video_stock_production` — one
   per chapter of the reference book, see each folder's `README.md`.
 - `commons/` — shared helpers (API keys, HTTP sessions) extracted as you go.

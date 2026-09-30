@@ -14,10 +14,27 @@ from typing import Optional
 DEFAULT_PROVIDER = "ollama"
 
 #: Per-provider endpoint/model defaults, overridable by env vars or CLI flags.
+#: The embedding model is a free, lightweight one for Ollama (``all-minilm`` is
+#: the same all-MiniLM-L6-v2 the book uses for evaluation); OpenAI keeps the
+#: book's ``text-embedding-3-small``.
 PROVIDER_DEFAULTS: dict[str, dict[str, str]] = {
-    "ollama": {"base_url": "http://localhost:11434/v1", "model": "qwen2.5:3b"},
-    "openai": {"base_url": "https://api.openai.com/v1", "model": "gpt-4o"},
+    "ollama": {
+        "base_url": "http://localhost:11434/v1",
+        "model": "qwen2.5:3b",
+        "embedding_model": "all-minilm",
+    },
+    "openai": {
+        "base_url": "https://api.openai.com/v1",
+        "model": "gpt-4o",
+        "embedding_model": "text-embedding-3-small",
+    },
 }
+
+#: Where chapter 2 embeddings are indexed (git-ignored, like the rest of ``data/``).
+DEFAULT_VECTOR_STORE = Path("data/processed/vector_store")
+
+#: Character chunk size for the vector store, matching the book's notebook.
+CHUNK_SIZE = 1000
 
 
 def load_env(filename: str = ".env", start: Optional[Path] = None) -> Optional[Path]:
@@ -51,6 +68,7 @@ class Settings:
     api_key: str
     temperature: float = 0.1
     think: bool = False
+    embedding_model: str = ""
 
     @classmethod
     def from_env(
@@ -61,6 +79,7 @@ class Settings:
         base_url: Optional[str] = None,
         temperature: Optional[float] = None,
         think: Optional[bool] = None,
+        embedding_model: Optional[str] = None,
     ) -> "Settings":
         """Build settings from explicit overrides, then env vars, then defaults."""
         provider = (provider or os.environ.get("MY_RAG_PROVIDER") or DEFAULT_PROVIDER).strip().lower()
@@ -68,6 +87,11 @@ class Settings:
 
         model = model or os.environ.get("MY_RAG_MODEL") or defaults.get("model", "")
         base_url = base_url or os.environ.get("OPENAI_BASE_URL") or defaults.get("base_url", "")
+        embedding_model = (
+            embedding_model
+            or os.environ.get("MY_RAG_EMBEDDING_MODEL")
+            or defaults.get("embedding_model", "")
+        )
 
         api_key = os.environ.get("OPENAI_API_KEY", "")
         if not api_key and provider == "ollama":
@@ -86,4 +110,5 @@ class Settings:
             api_key=api_key,
             temperature=temperature,
             think=think,
+            embedding_model=embedding_model,
         )
