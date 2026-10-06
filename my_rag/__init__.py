@@ -8,7 +8,8 @@ Chapter 1, part 1 ("Foundations and Basic Implementation") is implemented as
 RAG retrievers in :mod:`my_rag.retrieval`. Chapter 2 adds data collection
 (:mod:`my_rag.collection`), embeddings (:mod:`my_rag.embeddings`), and the Deep
 Lake vector store (:mod:`my_rag.vectorstore`). Chapter 3 adds LlamaIndex
-index-based semantic search (:mod:`my_rag.indexing`).
+index-based semantic search (:mod:`my_rag.indexing`). Chapter 4 adds multimodal,
+modular RAG over text and drone images (:mod:`my_rag.multimodal`).
 
 The vector-store and index symbols are resolved lazily (PEP 562) so that
 ``import my_rag`` does not pull in Deep Lake or LlamaIndex unless actually used.
@@ -23,9 +24,30 @@ from .collection import (
     collect,
     extract_text,
 )
-from .config import CHUNK_SIZE, DEFAULT_INDEX_STORE, DEFAULT_VECTOR_STORE, Settings, load_env
-from .embeddings import EmbeddingFunction, OpenAICompatibleEmbedding, create_embedding_function
+from .config import (
+    CHUNK_SIZE,
+    DEFAULT_IMAGE_DIR,
+    DEFAULT_INDEX_STORE,
+    DEFAULT_VECTOR_STORE,
+    Settings,
+    load_env,
+)
+from .embeddings import (
+    EmbeddingFunction,
+    EmbeddingIndex,
+    OpenAICompatibleEmbedding,
+    cosine_similarity,
+    create_embedding_function,
+)
 from .llm import LLM, create_llm, register_provider
+from .multimodal import (
+    MultimodalAnswer,
+    MultimodalRAG,
+    Sample,
+    collect_visdrone,
+    load_samples,
+    load_text_chunks,
+)
 from .pipeline import RAGPipeline, Retriever
 from .retrieval import (
     IndexRetriever,
@@ -50,12 +72,21 @@ __all__ = [
     "CHUNK_SIZE",
     "DEFAULT_VECTOR_STORE",
     "DEFAULT_INDEX_STORE",
+    "DEFAULT_IMAGE_DIR",
     "LLM",
     "create_llm",
     "register_provider",
     "EmbeddingFunction",
+    "EmbeddingIndex",
     "OpenAICompatibleEmbedding",
+    "cosine_similarity",
     "create_embedding_function",
+    "MultimodalAnswer",
+    "MultimodalRAG",
+    "Sample",
+    "collect_visdrone",
+    "load_samples",
+    "load_text_chunks",
     "RAGPipeline",
     "Retriever",
     "TfidfIndex",

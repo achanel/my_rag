@@ -14,8 +14,9 @@ Deep Lake calls an embedding function through the LangChain-style
 """
 from __future__ import annotations
 
-from typing import Protocol, Sequence
+from typing import Optional, Protocol, Sequence
 
+import numpy as np
 from openai import OpenAI
 
 from .config import Settings
@@ -57,6 +58,51 @@ class OpenAICompatibleEmbedding:
     def __call__(self, texts: Sequence[str] | str) -> list[list[float]]:
         """Alias for :meth:`embed_documents` (the book's ``embedding_function``)."""
         return self.embed_documents(texts)
+
+
+def cosine_similarity(first: Sequence[float], second: Sequence[float]) -> float:
+    """Cosine of the angle between two embedding vectors (0.0 if either is all zeros)."""
+    a = np.asarray(first, dtype=float)
+    b = np.asarray(second, dtype=float)
+    norm = np.linalg.norm(a) * np.linalg.norm(b)
+    return float(a @ b / norm) if norm else 0.0
+
+
+class EmbeddingIndex:
+    """In-memory semantic index: embed the records once, rank them by cosine similarity.
+
+    Chapter 4's ``VectorStoreIndex.from_documents`` without a persistent store — a few
+    hundred records fit in memory. Satisfies :class:`my_rag.pipeline.Retriever`.
+    """
+
+    def __init__(
+        self,
+        records: Sequence[str],
+        embedding_function: EmbeddingFunction,
+        *,
+        top_k: int = 1,
+    ) -> None:
+        if not records:
+            raise ValueError("cannot index an empty list of records")
+        self.records = list(records)
+        self.embedding_function = embedding_function
+        self.top_k = top_k
+        vectors = np.asarray(embedding_function.embed_documents(self.records), dtype=float)
+        norms = np.linalg.norm(vectors, axis=1, keepdims=True)
+        self._unit = vectors / np.where(norms == 0, 1.0, norms)
+
+    def search(self, query: str, *, top_k: Optional[int] = None) -> list[tuple[int, float]]:
+        """Return ``(position, score)`` for the ``top_k`` records most similar to ``query``."""
+        k = self.top_k if top_k is None else top_k
+        vector = np.asarray(self.embedding_function.embed_query(query), dtype=float)
+        norm = np.linalg.norm(vector)
+        scores = self._unit @ (vector / norm) if norm else np.zeros(len(self.records))
+        order = np.argsort(scores)[::-1][:k]
+        return [(int(position), float(scores[position])) for position in order]
+
+    def retrieve(self, query: str, *, top_k: Optional[int] = None) -> list[str]:
+        """Retriever protocol: the text of the ``top_k`` most similar records."""
+        return [self.records[position] for position, _ in self.search(query, top_k=top_k)]
 
 
 def create_embedding_function(settings: Settings) -> EmbeddingFunction:

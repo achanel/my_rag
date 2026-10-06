@@ -30,6 +30,13 @@ Chapter 3 adds LlamaIndex index-based semantic search (Deep Lake + Ollama)::
     python -m my_rag --collect --corpus drone
     python -m my_rag --rag index --index-type vector "How do drones identify vehicles?"
     python -m my_rag --rag index --index-type tree --show-context "..."
+
+Chapter 4 answers from the drone text and drone images together (needs a vision
+model, default ``gemma3:12b``)::
+
+    python -m my_rag --collect --corpus visdrone --limit 20
+    python -m my_rag --rag multimodal "How do drones identify a truck?"
+    python -m my_rag --rag multimodal --show-context "How do drones identify a truck?"
 """
 from __future__ import annotations
 
@@ -42,10 +49,18 @@ from typing import Optional
 from .collection import DEFAULT_DRONE_OUTPUT
 from .collection import DEFAULT_OUTPUT as DEFAULT_CORPUS
 from .collection import DRONE_URLS, WIKI_URLS, collect
-from .config import CHUNK_SIZE, DEFAULT_INDEX_STORE, DEFAULT_VECTOR_STORE, Settings, load_env
+from .config import (
+    CHUNK_SIZE,
+    DEFAULT_IMAGE_DIR,
+    DEFAULT_INDEX_STORE,
+    DEFAULT_VECTOR_STORE,
+    Settings,
+    load_env,
+)
 from .corpus import DB_RECORDS
 from .embeddings import create_embedding_function
 from .llm import LLM, available_providers, create_llm
+from .multimodal import DEFAULT_IMAGE_LIMIT, IMAGE_TOP_K, TEXT_TOP_K
 from .pipeline import RAGPipeline
 from .retrieval import create_retriever
 
@@ -53,6 +68,9 @@ DEFAULT_QUERY = "define a rag store"
 
 #: The book's chapter 3 question over the drone/UAV corpus.
 DEFAULT_INDEX_QUERY = "How do drones identify vehicles?"
+
+#: The book's chapter 4 question: answered from the drone text and the VisDrone images.
+DEFAULT_MULTIMODAL_QUERY = "How do drones identify a truck?"
 
 
 def format_response(response: str, width: int = 80) -> str:
@@ -97,7 +115,7 @@ def build_parser() -> argparse.ArgumentParser:
         nargs="?",
         default=None,
         help=f"question to send (default: {DEFAULT_QUERY!r}; "
-        f"for --rag index: {DEFAULT_INDEX_QUERY!r})",
+        f"for --rag index: {DEFAULT_INDEX_QUERY!r}; for --rag multimodal: {DEFAULT_MULTIMODAL_QUERY!r})",
     )
     parser.add_argument("--provider", help="LLM provider (env MY_RAG_PROVIDER; default: ollama)")
     parser.add_argument("--model", help="model name (env MY_RAG_MODEL; default: provider default)")
@@ -123,10 +141,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--rag",
-        choices=["none", "naive", "advanced", "modular", "embeddings", "index"],
+        choices=["none", "naive", "advanced", "modular", "embeddings", "index", "multimodal"],
         default="none",
         help="RAG variant: none (plain generation), naive (keyword), advanced (TF-IDF vector/index), "
-        "modular (selectable method), embeddings (vector store search), index (LlamaIndex index, ch. 3)",
+        "modular (selectable method), embeddings (vector store search), index (LlamaIndex index, ch. 3), "
+        "multimodal (text + drone images + vision model, ch. 4)",
     )
     parser.add_argument(
         "--method",
@@ -154,18 +173,35 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--collect",
         action="store_true",
-        help="fetch a corpus and exit (chapter 2 Wikipedia or chapter 3 drone)",
+        help="fetch a corpus and exit (chapter 2 Wikipedia, chapter 3 drone, or chapter 4 VisDrone images)",
     )
     parser.add_argument(
         "--corpus",
-        choices=["wiki", "drone"],
+        choices=["wiki", "drone", "visdrone"],
         default="wiki",
-        help="corpus for --collect: wiki (ch. 2) or drone (ch. 3, default: wiki)",
+        help="corpus for --collect: wiki (ch. 2), drone (ch. 3 text), or visdrone (ch. 4 images; "
+        "default: wiki)",
     )
     parser.add_argument(
         "--output",
-        help=f"corpus path for --collect, or corpus to embed/index for --embed/--rag index "
+        help=f"corpus path for --collect, or corpus to embed/index for --embed/--rag index/--rag multimodal "
         f"(default: {DEFAULT_CORPUS}; drone: {DEFAULT_DRONE_OUTPUT})",
+    )
+    parser.add_argument(
+        "--image-dir",
+        help=f"folder of VisDrone images and annotations for --collect --corpus visdrone or --rag multimodal "
+        f"(default: {DEFAULT_IMAGE_DIR})",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=DEFAULT_IMAGE_LIMIT,
+        help=f"number of VisDrone samples for --collect --corpus visdrone (default: {DEFAULT_IMAGE_LIMIT})",
+    )
+    parser.add_argument(
+        "--vision-model",
+        help="vision model for --rag multimodal (env MY_RAG_VISION_MODEL; default: provider default, "
+        "gemma3:12b for ollama)",
     )
     parser.add_argument(
         "--embed",
@@ -270,17 +306,94 @@ def run_index_query(args, settings: Settings) -> int:
     return 0
 
 
+def collect_images(image_dir: Path, limit: int) -> int:
+    """Save the first ``limit`` VisDrone samples to ``image_dir`` (ch. 4)."""
+    from .multimodal import collect_visdrone  # lazy: Deep Lake is a heavy import
+
+    print(f"collecting {limit} VisDrone samples from Deep Lake Hub ...", file=sys.stderr)
+    try:
+        samples = collect_visdrone(image_dir, limit, progress=lambda line: print(line, file=sys.stderr))
+    except Exception as exc:  # no network to Activeloop, unwritable folder, ...
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"wrote {len(samples)} images and annotations to {image_dir}", file=sys.stderr)
+    return 0
+
+
+def print_multimodal_answer(answer, settings: Settings, width: int) -> None:
+    """Print the text module's response, the vision module's response, and the scores (ch. 4)."""
+    print(format_response(answer.text_response, width=width))
+    print()
+    print(f"Vision ({settings.vision_model}) on {answer.sample.path.name}, object: {answer.label}")
+    print("---------------")
+    print(textwrap.fill(answer.vision_response, width=width))
+    print("---------------")
+    print(f"Boxed image: {answer.boxed_image}")
+    print(
+        f"Scores: text {answer.text_score:.3f} | vision {answer.vision_score:.3f} "
+        f"| modular {answer.modular_score:.3f}"
+    )
+
+
+def run_multimodal_query(args, settings: Settings) -> int:
+    """Answer ``args.query`` from the drone text and the drone images together (ch. 4)."""
+    from openai import NotFoundError
+
+    from .multimodal import MultimodalRAG, load_samples, load_text_chunks
+
+    corpus = Path(args.output) if args.output else DEFAULT_DRONE_OUTPUT
+    image_dir = Path(args.image_dir) if args.image_dir else DEFAULT_IMAGE_DIR
+    print(
+        f"rag: multimodal (text top_k={TEXT_TOP_K}, image top_k={IMAGE_TOP_K}, "
+        f"vision: {settings.vision_model})",
+        file=sys.stderr,
+    )
+    try:
+        rag = MultimodalRAG(settings, load_samples(image_dir), load_text_chunks(corpus))
+        answer = rag.answer(args.query)
+    except NotFoundError as exc:  # a configured model is not installed on the server
+        print(f"error: {exc}", file=sys.stderr)
+        if settings.provider == "ollama":
+            print(
+                f"hint: pull the models with: ollama pull {settings.vision_model} "
+                f"&& ollama pull {settings.embedding_model}",
+                file=sys.stderr,
+            )
+        return 1
+    except Exception as exc:  # missing data, Ollama unreachable, ...
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.show_context:
+        print("Retrieved text context:")
+        print("---------------")
+        for text in answer.text_context:
+            print(textwrap.fill(text, width=args.width))
+            print()
+        print(f"Retrieved image: {answer.sample.path} (labels: {answer.sample.label_text()})")
+        print("---------------")
+    print_multimodal_answer(answer, settings, width=args.width)
+    return 0
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.query is None:
-        args.query = DEFAULT_INDEX_QUERY if args.rag == "index" else DEFAULT_QUERY
+        if args.rag == "index":
+            args.query = DEFAULT_INDEX_QUERY
+        elif args.rag == "multimodal":
+            args.query = DEFAULT_MULTIMODAL_QUERY
+        else:
+            args.query = DEFAULT_QUERY
 
     if args.list_providers:
         print("\n".join(available_providers()))
         return 0
 
     if args.collect:
+        if args.corpus == "visdrone":
+            return collect_images(Path(args.image_dir) if args.image_dir else DEFAULT_IMAGE_DIR, args.limit)
         if args.corpus == "drone":
             return collect_corpus(Path(args.output) if args.output else DEFAULT_DRONE_OUTPUT, DRONE_URLS)
         return collect_corpus(Path(args.output) if args.output else DEFAULT_CORPUS, WIKI_URLS)
@@ -292,6 +405,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         base_url=args.base_url,
         temperature=args.temperature,
         think=args.think,
+        vision_model=args.vision_model,
     )
 
     if args.embed:
@@ -301,6 +415,9 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     if args.rag == "index":
         return run_index_query(args, settings)
+
+    if args.rag == "multimodal":
+        return run_multimodal_query(args, settings)
 
     info = f"[{settings.provider}] {settings.model} @ {settings.base_url}"
     if settings.provider == "ollama":

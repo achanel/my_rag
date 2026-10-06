@@ -136,10 +136,28 @@ LlamaIndex integrations, so it is scoped to `--provider ollama` (the default) �
 the OpenAI integrations pin `openai<3`, which would downgrade the version used
 elsewhere. See `notebooks/03_deep_lake_llamaindex/README.md` for the mapping.
 
+### Chapter 4 — multimodal, modular RAG
+
+Answers one question from the drone text and the drone images together: a text
+module (LLM over the corpus), an image module (VisDrone images matched by their
+object classes), and a vision module (a vision model asked about the boxed objects).
+It needs the vision model (`ollama pull gemma3:12b`) and the chapter 3 text corpus:
+
+```bash
+python -m my_rag --collect --corpus drone                # text corpus -> data/raw/drone.md (ch. 3)
+python -m my_rag --collect --corpus visdrone --limit 20  # images -> data/raw/drone_images
+python -m my_rag --rag multimodal "How do drones identify a truck?"
+python -m my_rag --rag multimodal --show-context "How do drones identify a truck?"
+```
+
+The book's scores (cosine similarity, averaged) are printed under the answer, and the
+image with the boxes drawn on it is saved to `data/processed/multimodal/`. See
+`notebooks/04_multimodal_modular_rag/README.md` for the mapping.
+
 Configuration resolves in this order: CLI flags → environment → per-provider
 defaults (`my_rag/config.py`). `MY_RAG_PROVIDER`, `MY_RAG_MODEL`,
-`MY_RAG_EMBEDDING_MODEL`, `MY_RAG_TEMPERATURE`, `MY_RAG_THINK`, `OPENAI_BASE_URL`,
-`OPENAI_API_KEY` are read from `.env`.
+`MY_RAG_EMBEDDING_MODEL`, `MY_RAG_VISION_MODEL`, `MY_RAG_TEMPERATURE`, `MY_RAG_THINK`,
+`OPENAI_BASE_URL`, `OPENAI_API_KEY` are read from `.env`.
 
 Extension points:
 
@@ -159,10 +177,12 @@ Extension points:
 ## Layout
 
 - `my_rag/` — the application package (`config`, `llm`, `embeddings`,
-  `vectorstore`, `indexing`, `collection`, `corpus`, `pipeline`, `retrieval`,
-  `cli`).
+  `vectorstore`, `indexing`, `multimodal`, `collection`, `corpus`, `pipeline`,
+  `retrieval`, `cli`).
 - `notebooks/01_rag_overview` … `notebooks/10_video_stock_production` — one
   per chapter of the reference book, see each folder's `README.md`.
+- `tests/` — offline unit tests for the chapter 4 code (fakes for Ollama and the
+  vision model). Run with `python -m unittest discover -s tests`.
 - `commons/` — shared helpers (API keys, HTTP sessions) extracted as you go.
 - `data/raw`, `data/processed` — input and derived datasets (git-ignored).
 - `models/` — local model checkpoints / cache (git-ignored).

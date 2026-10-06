@@ -22,11 +22,13 @@ PROVIDER_DEFAULTS: dict[str, dict[str, str]] = {
         "base_url": "http://localhost:11434/v1",
         "model": "qwen2.5:3b",
         "embedding_model": "all-minilm",
+        "vision_model": "gemma3:12b",
     },
     "openai": {
         "base_url": "https://api.openai.com/v1",
         "model": "gpt-4o",
         "embedding_model": "text-embedding-3-small",
+        "vision_model": "gpt-4o",
     },
 }
 
@@ -37,6 +39,12 @@ DEFAULT_VECTOR_STORE = Path("data/processed/vector_store")
 #: Kept apart from ``DEFAULT_VECTOR_STORE``: the LlamaIndex integration uses a
 #: different dataset schema than chapter 2's raw ``deeplake.VectorStore``.
 DEFAULT_INDEX_STORE = Path("data/processed/index_store")
+
+#: Where chapter 4's drone images and their annotations are saved (git-ignored).
+DEFAULT_IMAGE_DIR = Path("data/raw/drone_images")
+
+#: Where chapter 4 writes the images with the object boxes drawn on them (git-ignored).
+DEFAULT_BOXED_DIR = Path("data/processed/multimodal")
 
 #: Character chunk size for the vector store, matching the book's notebook.
 CHUNK_SIZE = 1000
@@ -74,6 +82,7 @@ class Settings:
     temperature: float = 0.1
     think: bool = False
     embedding_model: str = ""
+    vision_model: str = ""
 
     @classmethod
     def from_env(
@@ -85,6 +94,7 @@ class Settings:
         temperature: Optional[float] = None,
         think: Optional[bool] = None,
         embedding_model: Optional[str] = None,
+        vision_model: Optional[str] = None,
     ) -> "Settings":
         """Build settings from explicit overrides, then env vars, then defaults."""
         provider = (provider or os.environ.get("MY_RAG_PROVIDER") or DEFAULT_PROVIDER).strip().lower()
@@ -96,6 +106,11 @@ class Settings:
             embedding_model
             or os.environ.get("MY_RAG_EMBEDDING_MODEL")
             or defaults.get("embedding_model", "")
+        )
+        vision_model = (
+            vision_model
+            or os.environ.get("MY_RAG_VISION_MODEL")
+            or defaults.get("vision_model", "")
         )
 
         api_key = os.environ.get("OPENAI_API_KEY", "")
@@ -116,4 +131,5 @@ class Settings:
             temperature=temperature,
             think=think,
             embedding_model=embedding_model,
+            vision_model=vision_model,
         )
