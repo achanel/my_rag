@@ -183,6 +183,9 @@ Extension points:
   per chapter of the reference book, see each folder's `README.md`.
 - `tests/` — offline unit tests for the chapter 4 code (fakes for Ollama and the
   vision model). Run with `python -m unittest discover -s tests`.
+- `docs/atlas.html` — self-contained infographic for chapters 1–4 (pipeline
+  diagrams, an in-browser port of the chapter 1 retrievers, self-check
+  questions); open it in a browser.
 - `commons/` — shared helpers (API keys, HTTP sessions) extracted as you go.
 - `data/raw`, `data/processed` — input and derived datasets (git-ignored).
 - `models/` — local model checkpoints / cache (git-ignored).
