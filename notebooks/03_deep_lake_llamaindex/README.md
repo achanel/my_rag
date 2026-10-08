@@ -1,5 +1,7 @@
 # Chapter 3 — Deep Lake + LlamaIndex + OpenAI RAG
 
+*Part of [**my_rag**](../../README.md) — the root README has setup and the chapter map.*
+
 An end-to-end RAG pipeline built on LlamaIndex with Deep Lake as the vector
 store and OpenAI as the generator.
 

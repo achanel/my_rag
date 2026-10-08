@@ -1,5 +1,7 @@
 # Chapter 2 — Data Collection, Embeddings & Augmented Generation
 
+*Part of [**my_rag**](../../README.md) — the root README has setup and the chapter map.*
+
 The three core pipeline stages: collecting/preparing source data, building
 embeddings and storing them in a vector store, then augmenting generation
 with retrieved context.

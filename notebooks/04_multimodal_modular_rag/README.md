@@ -1,5 +1,7 @@
 # Chapter 4 — Multimodal, Modular RAG
 
+*Part of [**my_rag**](../../README.md) — the root README has setup and the chapter map.*
+
 Combining text and image data in a modular RAG pipeline (drone-imagery use
 case).
 

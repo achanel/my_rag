@@ -1,5 +1,7 @@
 # Chapter 5 — Adaptive RAG with Human Feedback
 
+*Part of [**my_rag**](../../README.md) — the root README has setup and the chapter map.*
+
 Using human feedback signals to refine retrieval accuracy dynamically.
 
 Source notebook:
