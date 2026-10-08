@@ -37,6 +37,13 @@ model, default ``gemma3:12b``)::
     python -m my_rag --collect --corpus visdrone --limit 20
     python -m my_rag --rag multimodal "How do drones identify a truck?"
     python -m my_rag --rag multimodal --show-context "How do drones identify a truck?"
+
+Chapter 5 adapts the generator input to a panel ranking and runs the human
+feedback loop (rankings 1-4 need no network; 5 fetches a Wikipedia page)::
+
+    python -m my_rag --rag adaptive --ranking 5 "What is an LLM?"
+    python -m my_rag --rag adaptive --ranking 3 "What is an LLM?"
+    python -m my_rag --rag adaptive --ranking 1 --rating 3 "What is an LLM?"
 """
 from __future__ import annotations
 
@@ -71,6 +78,9 @@ DEFAULT_INDEX_QUERY = "How do drones identify vehicles?"
 
 #: The book's chapter 4 question: answered from the drone text and the VisDrone images.
 DEFAULT_MULTIMODAL_QUERY = "How do drones identify a truck?"
+
+#: The book's chapter 5 question, adapted by the panel's ranking.
+DEFAULT_ADAPTIVE_QUERY = "What is an LLM?"
 
 
 def format_response(response: str, width: int = 80) -> str:
@@ -115,7 +125,8 @@ def build_parser() -> argparse.ArgumentParser:
         nargs="?",
         default=None,
         help=f"question to send (default: {DEFAULT_QUERY!r}; "
-        f"for --rag index: {DEFAULT_INDEX_QUERY!r}; for --rag multimodal: {DEFAULT_MULTIMODAL_QUERY!r})",
+        f"for --rag index: {DEFAULT_INDEX_QUERY!r}; for --rag multimodal: {DEFAULT_MULTIMODAL_QUERY!r}; "
+        f"for --rag adaptive: {DEFAULT_ADAPTIVE_QUERY!r})",
     )
     parser.add_argument("--provider", help="LLM provider (env MY_RAG_PROVIDER; default: ollama)")
     parser.add_argument("--model", help="model name (env MY_RAG_MODEL; default: provider default)")
@@ -141,11 +152,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--rag",
-        choices=["none", "naive", "advanced", "modular", "embeddings", "index", "multimodal"],
+        choices=["none", "naive", "advanced", "modular", "embeddings", "index", "multimodal", "adaptive"],
         default="none",
         help="RAG variant: none (plain generation), naive (keyword), advanced (TF-IDF vector/index), "
         "modular (selectable method), embeddings (vector store search), index (LlamaIndex index, ch. 3), "
-        "multimodal (text + drone images + vision model, ch. 4)",
+        "multimodal (text + drone images + vision model, ch. 4), adaptive (ranking-driven RAG with "
+        "human feedback, ch. 5)",
     )
     parser.add_argument(
         "--method",
@@ -202,6 +214,27 @@ def build_parser() -> argparse.ArgumentParser:
         "--vision-model",
         help="vision model for --rag multimodal (env MY_RAG_VISION_MODEL; default: provider default, "
         "gemma3:12b for ollama)",
+    )
+    parser.add_argument(
+        "--ranking",
+        type=int,
+        choices=[1, 2, 3, 4, 5],
+        default=5,
+        help="panel ranking for --rag adaptive: 1-2 no RAG, 3-4 human feedback, 5 retrieved document "
+        "(default: 5)",
+    )
+    parser.add_argument(
+        "--num-words",
+        type=int,
+        default=100,
+        help="words pulled from the retrieved page for --rag adaptive (default: 100, the book's value)",
+    )
+    parser.add_argument(
+        "--rating",
+        type=int,
+        choices=[1, 2, 3, 4, 5],
+        default=None,
+        help="human rating (1-5) to record in the --rag adaptive feedback loop (default: none)",
     )
     parser.add_argument(
         "--embed",
@@ -376,6 +409,46 @@ def run_multimodal_query(args, settings: Settings) -> int:
     return 0
 
 
+def run_adaptive_query(args, settings: Settings) -> int:
+    """Answer ``args.query`` through the ranking-adaptive RAG with human feedback (ch. 5)."""
+    from .adaptive import AdaptiveRAG, NoMatchError, evaluate, strategy_for_ranking
+
+    print(
+        f"rag: adaptive (ranking {args.ranking} → {strategy_for_ranking(args.ranking)}, "
+        f"doc words: {args.num_words})",
+        file=sys.stderr,
+    )
+    try:
+        rag = AdaptiveRAG(settings)
+        result = rag.answer(args.query, ranking=args.ranking, num_words=args.num_words)
+    except NoMatchError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        print(
+            "no relevant keywords found. Please enter a query related to "
+            "'LLM', 'LLMs', or 'Prompt Engineering'.",
+            file=sys.stderr,
+        )
+        return 1
+    except Exception as exc:  # network down, Ollama unreachable, ...
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    print(format_response(result.response, width=args.width))
+    print()
+    print(f"Strategy: {result.strategy}" + (f" ({result.source})" if result.source else ""))
+    print(f"Response Time: {result.elapsed:.2f} seconds")
+
+    evaluation = evaluate(result, rating=args.rating)
+    print(f"Cosine Similarity Score: {evaluation.similarity:.3f}")
+    if evaluation.rating is not None:
+        print("Evaluator Score:", evaluation.rating)
+        print("Rankings      :", evaluation.state.counter)
+        print("Score history : ", evaluation.mean_score)
+        if evaluation.expert_review_required:
+            print("Human expert evaluation is required for the feedback loop.")
+    return 0
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -384,6 +457,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.query = DEFAULT_INDEX_QUERY
         elif args.rag == "multimodal":
             args.query = DEFAULT_MULTIMODAL_QUERY
+        elif args.rag == "adaptive":
+            args.query = DEFAULT_ADAPTIVE_QUERY
         else:
             args.query = DEFAULT_QUERY
 
@@ -418,6 +493,9 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     if args.rag == "multimodal":
         return run_multimodal_query(args, settings)
+
+    if args.rag == "adaptive":
+        return run_adaptive_query(args, settings)
 
     info = f"[{settings.provider}] {settings.model} @ {settings.base_url}"
     if settings.provider == "ollama":

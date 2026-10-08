@@ -154,6 +154,27 @@ The book's scores (cosine similarity, averaged) are printed under the answer, an
 image with the boxes drawn on it is saved to `data/processed/multimodal/`. See
 `notebooks/04_multimodal_modular_rag/README.md` for the mapping.
 
+### Chapter 5 — adaptive RAG with human feedback
+
+Adapts what the generator sees to the panel's ranking of earlier answers and runs
+the book's human-feedback loop. Only ranking 5 (the retrieved document) needs the
+network; rankings 1–4 run offline:
+
+```bash
+python -m my_rag --rag adaptive --ranking 5 "What is an LLM?"   # retrieved Wikipedia document (RAG)
+python -m my_rag --rag adaptive --ranking 3 "What is an LLM?"   # human-expert feedback only
+python -m my_rag --rag adaptive --ranking 1 "What is an LLM?"   # no RAG: the bare query
+python -m my_rag --rag adaptive --ranking 5 --num-words 50 "What is an LLM?"
+python -m my_rag --rag adaptive --ranking 1 --rating 3 "What is an LLM?"  # record a rating
+```
+
+`--ranking 1|2` sends no context, `3|4` the human-expert flashcard, `5` the
+retrieved page's first `--num-words` words (default 100); the answer is followed by
+the response time and a TF-IDF cosine between input and answer. `--rating 1..5`
+records into `RatingState` (seeded from the book) and prints the running mean plus
+the expert-review hint. See `notebooks/05_adaptive_rag_human_feedback/README.md`
+for the mapping.
+
 Configuration resolves in this order: CLI flags → environment → per-provider
 defaults (`my_rag/config.py`). `MY_RAG_PROVIDER`, `MY_RAG_MODEL`,
 `MY_RAG_EMBEDDING_MODEL`, `MY_RAG_VISION_MODEL`, `MY_RAG_TEMPERATURE`, `MY_RAG_THINK`,
@@ -177,15 +198,16 @@ Extension points:
 ## Layout
 
 - `my_rag/` — the application package (`config`, `llm`, `embeddings`,
-  `vectorstore`, `indexing`, `multimodal`, `collection`, `corpus`, `pipeline`,
-  `retrieval`, `cli`).
+  `vectorstore`, `indexing`, `multimodal`, `adaptive`, `collection`, `corpus`,
+  `pipeline`, `retrieval`, `cli`).
 - `notebooks/01_rag_overview` … `notebooks/10_video_stock_production` — one
   per chapter of the reference book, see each folder's `README.md`.
-- `tests/` — offline unit tests for the chapter 4 code (fakes for Ollama and the
-  vision model). Run with `python -m unittest discover -s tests`.
-- `docs/atlas.html` — self-contained infographic for chapters 1–4 (pipeline
-  diagrams, an in-browser port of the chapter 1 retrievers, self-check
-  questions); open it in a browser.
+- `tests/` — offline unit tests for the chapter 4 and 5 code (fakes for Ollama,
+  the vision model, the web fetch and the LLM). Run with
+  `python -m unittest discover -s tests`.
+- `docs/atlas.html` — self-contained infographic for chapters 1–5 (pipeline
+  diagrams, an in-browser port of the chapter 1 retrievers, the chapter 5
+  ranking/feedback loop, self-check questions); open it in a browser.
 - `commons/` — shared helpers (API keys, HTTP sessions) extracted as you go.
 - `data/raw`, `data/processed` — input and derived datasets (git-ignored).
 - `models/` — local model checkpoints / cache (git-ignored).

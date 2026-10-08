@@ -9,11 +9,30 @@ RAG retrievers in :mod:`my_rag.retrieval`. Chapter 2 adds data collection
 (:mod:`my_rag.collection`), embeddings (:mod:`my_rag.embeddings`), and the Deep
 Lake vector store (:mod:`my_rag.vectorstore`). Chapter 3 adds LlamaIndex
 index-based semantic search (:mod:`my_rag.indexing`). Chapter 4 adds multimodal,
-modular RAG over text and drone images (:mod:`my_rag.multimodal`).
+modular RAG over text and drone images (:mod:`my_rag.multimodal`). Chapter 5 adds
+ranking-adaptive RAG with a human-feedback loop (:mod:`my_rag.adaptive`).
 
 The vector-store and index symbols are resolved lazily (PEP 562) so that
 ``import my_rag`` does not pull in Deep Lake or LlamaIndex unless actually used.
 """
+from .adaptive import (
+    ADAPTIVE_SOURCES,
+    HUMAN_FEEDBACK,
+    AdaptiveRAG,
+    AdaptiveResult,
+    Evaluation,
+    NoMatchError,
+    RatingState,
+    Retrieved,
+    evaluate,
+    first_words,
+    load_expert_feedback,
+    match_keyword,
+    retrieve,
+    save_expert_feedback,
+    strategy_for_ranking,
+    tfidf_similarity,
+)
 from .collection import (
     Article,
     CollectionResult,
@@ -26,6 +45,7 @@ from .collection import (
 )
 from .config import (
     CHUNK_SIZE,
+    DEFAULT_EXPERT_FEEDBACK,
     DEFAULT_IMAGE_DIR,
     DEFAULT_INDEX_STORE,
     DEFAULT_VECTOR_STORE,
@@ -67,12 +87,29 @@ __all__ = [
     "clean_text",
     "collect",
     "extract_text",
+    "ADAPTIVE_SOURCES",
+    "HUMAN_FEEDBACK",
+    "AdaptiveRAG",
+    "AdaptiveResult",
+    "Evaluation",
+    "NoMatchError",
+    "RatingState",
+    "Retrieved",
+    "evaluate",
+    "first_words",
+    "load_expert_feedback",
+    "match_keyword",
+    "retrieve",
+    "save_expert_feedback",
+    "strategy_for_ranking",
+    "tfidf_similarity",
     "Settings",
     "load_env",
     "CHUNK_SIZE",
     "DEFAULT_VECTOR_STORE",
     "DEFAULT_INDEX_STORE",
     "DEFAULT_IMAGE_DIR",
+    "DEFAULT_EXPERT_FEEDBACK",
     "LLM",
     "create_llm",
     "register_provider",

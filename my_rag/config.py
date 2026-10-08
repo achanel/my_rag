@@ -46,6 +46,9 @@ DEFAULT_IMAGE_DIR = Path("data/raw/drone_images")
 #: Where chapter 4 writes the images with the object boxes drawn on them (git-ignored).
 DEFAULT_BOXED_DIR = Path("data/processed/multimodal")
 
+#: Where chapter 5's human-expert feedback loop saves its flashcard (git-ignored).
+DEFAULT_EXPERT_FEEDBACK = Path("data/processed/adaptive/expert_feedback.txt")
+
 #: Character chunk size for the vector store, matching the book's notebook.
 CHUNK_SIZE = 1000
 
