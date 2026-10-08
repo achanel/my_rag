@@ -294,9 +294,9 @@ html { scroll-behavior: smooth; }
 <div class="wrap">
 
 <header class="masthead">
-  <p class="eyebrow">my_rag · конспект глав 1–4 «RAG-Driven Generative AI» (Rothman)</p>
+  <p class="eyebrow">my_rag · конспект глав 1–5 «RAG-Driven Generative AI» (Rothman)</p>
   <h1>Атлас <span>my_rag</span></h1>
-  <p class="lead">Четыре главы собирают один и тот же пайплайн: <b>найти</b> контекст, <b>склеить</b> его с вопросом, <b>сгенерировать</b> ответ. От главы к главе меняется только то, что ищем и как. Цвет во всех схемах значит одно и то же:</p>
+  <p class="lead">Пять глав собирают один и тот же пайплайн: <b>найти</b> контекст, <b>склеить</b> его с вопросом, <b>сгенерировать</b> ответ. От главы к главе меняется только то, что ищем и как. Цвет во всех схемах значит одно и то же:</p>
   <div class="legend" aria-label="Цвета стадий">
     <span class="chip" data-stage="ingest"><span class="dot"></span><b>Данные</b> сбор, чанки, эмбеддинги</span>
     <span class="chip" data-stage="retrieve"><span class="dot"></span><b>Retrieve</b> поиск контекста</span>
@@ -312,6 +312,7 @@ html { scroll-behavior: smooth; }
     <li><a href="#ch2"><b>2</b> Эмбеддинги</a></li>
     <li><a href="#ch3"><b>3</b> LlamaIndex</a></li>
     <li><a href="#ch4"><b>4</b> Мультимодальный</a></li>
+    <li><a href="#ch5"><b>5</b> Адаптивный</a></li>
     <li><a href="#cheat"><b>⌘</b> Шпаргалка</a></li>
   </ol>
 </nav>
@@ -372,19 +373,20 @@ html { scroll-behavior: smooth; }
     <div class="block-title"><h3>Как рос пакет</h3><span class="eyebrow">модуль × глава</span></div>
     <div class="table-wrap">
       <table class="matrix">
-        <thead><tr><th>Модуль</th><th class="c">1</th><th class="c">2</th><th class="c">3</th><th class="c">4</th><th>Главное внутри</th></tr></thead>
+        <thead><tr><th>Модуль</th><th class="c">1</th><th class="c">2</th><th class="c">3</th><th class="c">4</th><th class="c">5</th><th>Главное внутри</th></tr></thead>
         <tbody>
-          <tr><td><code>config.py</code></td><td class="c mark-new" title="создан">●</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td><code>Settings.from_env</code>: флаг CLI → env → дефолт провайдера; пути к данным</td></tr>
-          <tr><td><code>llm.py</code></td><td class="c mark-new">●</td><td class="c mark-use" title="используется">○</td><td class="c"></td><td class="c mark-use">○</td><td><code>LLM</code> (ABC), <code>@register_provider</code>, OpenAI-совместимый клиент</td></tr>
-          <tr><td><code>pipeline.py</code></td><td class="c mark-new">●</td><td class="c mark-use">○</td><td class="c"></td><td class="c mark-use">○</td><td><code>RAGPipeline</code>, протокол <code>Retriever</code></td></tr>
-          <tr><td><code>corpus.py</code></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td>28 абзацев книги про RAG (<code>DB_RECORDS</code>)</td></tr>
-          <tr><td><code>retrieval.py</code></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td>Keyword / TF-IDF Vector / TF-IDF Index / Modular</td></tr>
-          <tr><td><code>cli.py</code></td><td class="c mark-new">●</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td>каждая глава добавляет флаги: <code>--rag</code>, <code>--collect</code>, <code>--embed</code>…</td></tr>
-          <tr><td><code>collection.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c mark-ext">◐</td><td class="c mark-use">○</td><td>скачивание и чистка страниц → один Markdown-файл</td></tr>
-          <tr><td><code>embeddings.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-ext">◐</td><td>эмбеддинги через <code>/v1/embeddings</code>; в гл. 4 + <code>EmbeddingIndex</code>, косинус</td></tr>
-          <tr><td><code>vectorstore.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-use">○</td><td><code>chunk_text</code>, Deep Lake <code>VectorStore</code></td></tr>
-          <tr><td><code>indexing.py</code></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td>4 индекса LlamaIndex, обход бага numpy 2</td></tr>
-          <tr><td><code>multimodal.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td>текст + картинки + vision-модель, оценки</td></tr>
+          <tr><td><code>config.py</code></td><td class="c mark-new" title="создан">●</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td><code>Settings.from_env</code>: флаг CLI → env → дефолт провайдера; пути к данным</td></tr>
+          <tr><td><code>llm.py</code></td><td class="c mark-new">●</td><td class="c mark-use" title="используется">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c mark-use">○</td><td><code>LLM</code> (ABC), <code>@register_provider</code>, OpenAI-совместимый клиент</td></tr>
+          <tr><td><code>pipeline.py</code></td><td class="c mark-new">●</td><td class="c mark-use">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c mark-use">○</td><td><code>RAGPipeline</code>, протокол <code>Retriever</code></td></tr>
+          <tr><td><code>corpus.py</code></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td>28 абзацев книги про RAG (<code>DB_RECORDS</code>)</td></tr>
+          <tr><td><code>retrieval.py</code></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-use">○</td><td>Keyword / TF-IDF Vector / TF-IDF Index / Modular; в гл. 5 <code>TfidfIndex</code> даёт косинус оценки</td></tr>
+          <tr><td><code>cli.py</code></td><td class="c mark-new">●</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td>каждая глава добавляет флаги: <code>--rag</code>, <code>--collect</code>, <code>--ranking</code>…</td></tr>
+          <tr><td><code>collection.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c mark-ext">◐</td><td class="c mark-use">○</td><td class="c mark-use">○</td><td>скачивание и чистка страниц → один Markdown-файл; в гл. 5 <code>fetch_article</code></td></tr>
+          <tr><td><code>embeddings.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-ext">◐</td><td class="c"></td><td>эмбеддинги через <code>/v1/embeddings</code>; в гл. 4 + <code>EmbeddingIndex</code>, косинус</td></tr>
+          <tr><td><code>vectorstore.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td><code>chunk_text</code>, Deep Lake <code>VectorStore</code></td></tr>
+          <tr><td><code>indexing.py</code></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td>4 индекса LlamaIndex, обход бага numpy 2</td></tr>
+          <tr><td><code>multimodal.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td>текст + картинки + vision-модель, оценки</td></tr>
+          <tr><td><code>adaptive.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td>рейтинг → стратегия, оценщик, журнал человеческих оценок</td></tr>
         </tbody>
       </table>
     </div>
@@ -771,6 +773,88 @@ def _anthropic(settings) -&gt; LLM:
   </div>
 </section>
 
+<!-- ================= CHAPTER 5 ================= -->
+<section class="chapter" id="ch5">
+  <div class="station" aria-hidden="true">5</div>
+  <div class="chapter-head">
+    <p class="eyebrow">Глава 5 · Adaptive RAG with Human Feedback</p>
+    <h2>Рейтинг панели решает, что увидит модель</h2>
+    <p class="lead">Три фазы в одном цикле: ретривер достаёт страницу по ключевому слову, генератор выбирает вход по оценке панели (1–5), оценщик меряет время, считает косинус и ведёт журнал человеческих оценок. Контур замкнут: низкая средняя оценка зовёт человека-эксперта.</p>
+    <div class="refs"><code>adaptive.py</code><code>collection.py → fetch_article</code><code>retrieval.py → TfidfIndex</code><code>pipeline.py</code></div>
+  </div>
+
+  <div class="block">
+    <div class="block-title"><h3>Цикл главы</h3><span class="eyebrow">retrieve → adapt → generate → evaluate → …</span></div>
+    <div class="flow">
+      <div class="node" data-stage="retrieve"><span class="k">1 · retrieve</span><b>ADAPTIVE_SOURCES</b><small>ключевое слово → страница Википедии; первые <code>num_words</code> слов</small></div>
+      <div class="arrow" aria-hidden="true"></div>
+      <div class="node" data-stage="augment"><span class="k">2 · adapt</span><b>strategy_for_ranking()</b><small>оценка 1–5 выбирает вход генератора</small></div>
+      <div class="arrow" aria-hidden="true"></div>
+      <div class="node" data-stage="generate"><span class="k">3 · generate</span><b>RAGPipeline.answer()</b><small>системный промпт и инструкция книги; модель Ollama</small></div>
+      <div class="arrow" aria-hidden="true"></div>
+      <div class="node" data-stage="plain"><span class="k">4 · evaluate</span><b>evaluate()</b><small>время ответа, TF-IDF косинус, журнал оценок</small></div>
+    </div>
+    <p class="note" style="margin-top:12px">Выход оценщика возвращается в шаг 2: следующая оценка панели снова выбирает стратегию. Это и есть adaptive loop, ради которого глава и написана.</p>
+  </div>
+
+  <div class="grid-3">
+    <div class="block variant">
+      <h4><span class="dot" data-stage="plain"></span>Рейтинг 1–2 <small>--ranking 1|2</small></h4>
+      <p>Панель недовольна — контекст не добавляем вовсе. В модель уходит голый запрос, как в части 1 главы 1 (no RAG).</p>
+      <div class="formula">strategy = "none"
+text_input = query   # 4 слова</div>
+    </div>
+    <div class="block variant">
+      <h4><span class="dot" data-stage="augment"></span>Рейтинг 3–4 <small>--ranking 3|4</small></h4>
+      <p>Средняя оценка — подмешиваем экспертный человеческий фидбек (flashcard про C-phone), а не найденный документ.</p>
+      <div class="formula">strategy = "feedback"
+text_input = HUMAN_FEEDBACK  # 214 слов</div>
+    </div>
+    <div class="block variant">
+      <h4><span class="dot" data-stage="retrieve"></span>Рейтинг 5 <small>--ranking 5</small></h4>
+      <p>Всё хорошо — отдаём модели найденный фрагмент. Сеть нужна только на этой ветке; 1–4 работают офлайн.</p>
+      <div class="formula">strategy = "rag"
+text_input = first_words(page, 100)</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="block">
+      <div class="block-title"><h3>Что реально уходит в модель</h3><span class="eyebrow">длина входа по стратегиям</span></div>
+      <div class="bars" id="adopt-chart"></div>
+      <p class="axis-note">Слова во входе генератора. RAG-фрагмент обрезан до 100 слов (<code>--num-words</code>), фидбек — весь flashcard.</p>
+    </div>
+    <div class="block">
+      <div class="block-title"><h3>Журнал оценок</h3><span class="eyebrow">RatingState</span></div>
+      <div class="formula">counter       = 20    # прошлые оценки
+score_history = 60    # сумма баллов
+--rating 3 →
+counter       = 21
+score_history = 63
+mean = round(63 / 21, 2) = 3.0</div>
+      <p class="note" style="margin-top:12px">Триггер эксперта — условие книги: <code>counter &gt; 10 and score_history &lt;= 4</code>. Сравнивается <b>накопленная</b> сумма, а не среднее, поэтому срабатывает только на большой и очень плохой панели. Оставлено дословно ради воспроизводимости.</p>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="callout">
+      <h4>Косинус на TF-IDF, а не на эмбеддингах</h4>
+      <p>Оценщик меряет близость входа и ответа той же математикой, что advanced-retriever главы 1: <code>TfidfIndex([input, response])</code> и скалярное произведение L2-нормированных строк. Книга берёт для этого scikit-learn.</p>
+    </div>
+    <div class="callout">
+      <h4>Ключевое слово — подстрокой</h4>
+      <p><code>match_keyword()</code> ищет ключ в запросе как подстроку, по порядку словаря. Поэтому <code>llm</code> стоит раньше <code>llms</code>: «what is an llm» попадает в <code>llm</code>. Нет совпадения — ретривер печатает сообщение книги и выходит.</p>
+    </div>
+  </div>
+
+  <div class="quiz">
+    <p class="eyebrow">Проверь себя</p>
+    <details><summary>Какие ветки работают без сети?</summary><div>Рейтинги 1–4: <code>none</code> отдаёт запрос, <code>feedback</code> — константу <code>HUMAN_FEEDBACK</code>. Только рейтинг 5 (стратегия <code>rag</code>) тянут страницу Википедии.</div></details>
+    <details><summary>Почему mean при одной оценке 3 выходит ровно 3.0?</summary><div><code>RatingState</code> стартует с чисел книги: counter=20, score_history=60. После <code>--rating 3</code> они равны 21 и 63, а <code>63 / 21 = 3.0</code> — так воспроизводится вывод ноутбука.</div></details>
+    <details><summary>Чем фидбек-ветка отличается от обычного RAG?</summary><div>Контекст не ищется по запросу вовсе: подставляется заранее заготовленный экспертный текст. Это и отличает HF-RAG (human-feedback-augmented) от document RAG.</div></details>
+  </div>
+</section>
+
 </div><!-- /.line -->
 
 <!-- ================= CHEATSHEET ================= -->
@@ -789,6 +873,8 @@ def _anthropic(settings) -&gt; LLM:
         <tr><td>Хранилище</td><td><code>hub://denis76/…</code></td><td>локальные пути в <code>data/processed/</code>, токен не нужен</td></tr>
         <tr><td>TF-IDF</td><td>scikit-learn</td><td><code>TfidfIndex</code> на numpy</td></tr>
         <tr><td>Оценки</td><td><code>sentence-transformers</code></td><td>тот же <code>all-minilm</code> через Ollama</td></tr>
+        <tr><td>Косинус оценки (гл. 5)</td><td>scikit-learn <code>TfidfVectorizer</code></td><td><code>TfidfIndex</code> на numpy</td></tr>
+        <tr><td>Адаптация входа (гл. 5)</td><td><code>ranking</code> 1–5, <code>human_feedback.txt</code></td><td>то же; flashcard — константа <code>HUMAN_FEEDBACK</code>, флаг <code>--ranking</code></td></tr>
         <tr><td>VisDrone</td><td>стрим с hub на каждый запуск</td><td>один раз скачать 20 снимков в <code>data/raw/drone_images</code></td></tr>
       </tbody>
     </table>
@@ -822,7 +908,16 @@ def _anthropic(settings) -&gt; LLM:
       <div class="cmds">
         <div class="cmd"><code>python -m my_rag --collect --corpus visdrone --limit 20</code><button class="copy" type="button">Копировать</button><span class="what">снимки + annotations.json → data/raw/drone_images</span></div>
         <div class="cmd"><code>python -m my_rag --rag multimodal --show-context "How do drones identify a truck?"</code><button class="copy" type="button">Копировать</button><span class="what">три модуля + оценки; рамки в data/processed/multimodal</span></div>
-        <div class="cmd"><code>python -m unittest discover -s tests</code><button class="copy" type="button">Копировать</button><span class="what">офлайн-тесты главы 4 (фейки Ollama и vision)</span></div>
+        <div class="cmd"><code>python -m unittest discover -s tests</code><button class="copy" type="button">Копировать</button><span class="what">офлайн-тесты глав 4–5 (фейки Ollama, vision, сети)</span></div>
+      </div>
+    </div>
+    <div class="stack">
+      <p class="eyebrow">Глава 5</p>
+      <div class="cmds">
+        <div class="cmd"><code>python -m my_rag --rag adaptive --ranking 5 "What is an LLM?"</code><button class="copy" type="button">Копировать</button><span class="what">рейтинг 5: найденный документ (RAG), нужна сеть</span></div>
+        <div class="cmd"><code>python -m my_rag --rag adaptive --ranking 3 "What is an LLM?"</code><button class="copy" type="button">Копировать</button><span class="what">рейтинг 3–4: только экспертный фидбек, офлайн</span></div>
+        <div class="cmd"><code>python -m my_rag --rag adaptive --ranking 1 "What is an LLM?"</code><button class="copy" type="button">Копировать</button><span class="what">рейтинг 1–2: без RAG, голый запрос</span></div>
+        <div class="cmd"><code>python -m my_rag --rag adaptive --ranking 1 --rating 3 "What is an LLM?"</code><button class="copy" type="button">Копировать</button><span class="what">записать оценку в журнал: Rankings 21, Score 3.0</span></div>
       </div>
     </div>
   </div>
@@ -838,12 +933,13 @@ def _anthropic(settings) -&gt; LLM:
         <tr><td><code>data/processed/index_store</code></td><td>гл. 3 vector-индекс</td><td>гл. 3</td></tr>
         <tr><td><code>data/raw/drone_images/</code></td><td>гл. 4 <code>--corpus visdrone</code></td><td>гл. 4 (картиночный модуль)</td></tr>
         <tr><td><code>data/processed/multimodal/</code></td><td>гл. 4 <code>draw_boxes()</code></td><td>ты: открыть и посмотреть рамки</td></tr>
+        <tr><td><code>data/processed/adaptive/expert_feedback.txt</code></td><td>гл. 5 <code>save_expert_feedback()</code></td><td>гл. 5 <code>load_expert_feedback()</code></td></tr>
       </tbody>
     </table>
   </div>
 </section>
 
-<footer>Числа на странице взяты из твоего репозитория и локального Ollama на 6 октября 2026: размер хранилища, разрезы чанков, вектор вопроса и ранжирование снимков.</footer>
+<footer>Числа на странице взяты из твоего репозитория и локального Ollama на 6 октября 2026: размер хранилища, разрезы чанков, вектор вопроса, ранжирование снимков и длины входов главы 5.</footer>
 </div>
 
 <div class="tip" id="tip" hidden></div>
@@ -1075,6 +1171,13 @@ if (typeof module !== 'undefined') module.exports = RAG;
     return { k: r[0], v: r[1], label: String(r[1]), dim: r[0] !== 'truck' };
   }), { max: 400, stage: 'ingest' });
 
+  var ADOPT = [
+    { k: 'feedback (3–4)', v: 214, label: '214', dim: true, tip: 'HUMAN_FEEDBACK — весь экспертный flashcard' },
+    { k: 'rag (5)', v: 100, label: '100', tip: 'найденная страница, обрезано --num-words 100' },
+    { k: 'none (1–2)', v: 4, label: '4', dim: true, tip: 'голый запрос «What is an LLM?»' }
+  ];
+  bars(document.getElementById('adopt-chart'), ADOPT, { max: 214, stage: 'augment' });
+
   /* ---------- tooltip ---------- */
   var tip = document.getElementById('tip');
   function showTip(el, x, y) {
@@ -1119,7 +1222,7 @@ if (typeof module !== 'undefined') module.exports = RAG;
         links.forEach(function (a) { a.classList.toggle('is-active', a.getAttribute('href') === '#' + en.target.id); });
       });
     }, { rootMargin: '-45% 0px -50% 0px' });
-    ['core', 'ch1', 'ch2', 'ch3', 'ch4', 'cheat'].forEach(function (id) { var s = document.getElementById(id); if (s) io.observe(s); });
+    ['core', 'ch1', 'ch2', 'ch3', 'ch4', 'ch5', 'cheat'].forEach(function (id) { var s = document.getElementById(id); if (s) io.observe(s); });
   }
 })();
 </script>
