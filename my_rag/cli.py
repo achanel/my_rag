@@ -44,6 +44,13 @@ feedback loop (rankings 1-4 need no network; 5 fetches a Wikipedia page)::
     python -m my_rag --rag adaptive --ranking 5 "What is an LLM?"
     python -m my_rag --rag adaptive --ranking 3 "What is an LLM?"
     python -m my_rag --rag adaptive --ranking 1 --rating 3 "What is an LLM?"
+
+Chapter 6 scales the index onto Qdrant over the bank-customer-churn dataset
+(local and key-free by default)::
+
+    python -m my_rag --collect --corpus churn
+    python -m my_rag --build-index
+    python -m my_rag --rag qdrant "Customer Henderson CreditScore 599 ..."
 """
 from __future__ import annotations
 
@@ -58,8 +65,10 @@ from .collection import DEFAULT_OUTPUT as DEFAULT_CORPUS
 from .collection import DRONE_URLS, WIKI_URLS, collect
 from .config import (
     CHUNK_SIZE,
+    DEFAULT_CHURN_CSV,
     DEFAULT_IMAGE_DIR,
     DEFAULT_INDEX_STORE,
+    DEFAULT_QDRANT_COLLECTION,
     DEFAULT_VECTOR_STORE,
     Settings,
     load_env,
@@ -70,6 +79,7 @@ from .llm import LLM, available_providers, create_llm
 from .multimodal import DEFAULT_IMAGE_LIMIT, IMAGE_TOP_K, TEXT_TOP_K
 from .pipeline import RAGPipeline
 from .retrieval import create_retriever
+from .scaling import DEFAULT_DSIZE, DEFAULT_QUERY_RECORD
 
 DEFAULT_QUERY = "define a rag store"
 
@@ -126,7 +136,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=f"question to send (default: {DEFAULT_QUERY!r}; "
         f"for --rag index: {DEFAULT_INDEX_QUERY!r}; for --rag multimodal: {DEFAULT_MULTIMODAL_QUERY!r}; "
-        f"for --rag adaptive: {DEFAULT_ADAPTIVE_QUERY!r})",
+        f"for --rag adaptive: {DEFAULT_ADAPTIVE_QUERY!r}; for --rag qdrant: a customer record)",
     )
     parser.add_argument("--provider", help="LLM provider (env MY_RAG_PROVIDER; default: ollama)")
     parser.add_argument("--model", help="model name (env MY_RAG_MODEL; default: provider default)")
@@ -152,12 +162,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--rag",
-        choices=["none", "naive", "advanced", "modular", "embeddings", "index", "multimodal", "adaptive"],
+        choices=[
+            "none", "naive", "advanced", "modular", "embeddings", "index", "multimodal",
+            "adaptive", "qdrant",
+        ],
         default="none",
         help="RAG variant: none (plain generation), naive (keyword), advanced (TF-IDF vector/index), "
         "modular (selectable method), embeddings (vector store search), index (LlamaIndex index, ch. 3), "
         "multimodal (text + drone images + vision model, ch. 4), adaptive (ranking-driven RAG with "
-        "human feedback, ch. 5)",
+        "human feedback, ch. 5), qdrant (Qdrant collection over bank-churn records, ch. 6)",
     )
     parser.add_argument(
         "--method",
@@ -189,15 +202,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--corpus",
-        choices=["wiki", "drone", "visdrone"],
+        choices=["wiki", "drone", "visdrone", "churn"],
         default="wiki",
-        help="corpus for --collect: wiki (ch. 2), drone (ch. 3 text), or visdrone (ch. 4 images; "
-        "default: wiki)",
+        help="corpus for --collect: wiki (ch. 2), drone (ch. 3 text), visdrone (ch. 4 images), "
+        "or churn (ch. 6 bank-customer dataset; default: wiki)",
     )
     parser.add_argument(
         "--output",
-        help=f"corpus path for --collect, or corpus to embed/index for --embed/--rag index/--rag multimodal "
-        f"(default: {DEFAULT_CORPUS}; drone: {DEFAULT_DRONE_OUTPUT})",
+        help=f"path for --collect / --embed / --rag index / --rag multimodal / --churn-report / --build-index "
+        f"(default: {DEFAULT_CORPUS}; drone: {DEFAULT_DRONE_OUTPUT}; churn: {DEFAULT_CHURN_CSV})",
     )
     parser.add_argument(
         "--image-dir",
@@ -235,6 +248,33 @@ def build_parser() -> argparse.ArgumentParser:
         choices=[1, 2, 3, 4, 5],
         default=None,
         help="human rating (1-5) to record in the --rag adaptive feedback loop (default: none)",
+    )
+    parser.add_argument(
+        "--churn-report",
+        action="store_true",
+        help="print the churn EDA and KMeans segmentation, then exit (chapter 6, part 1)",
+    )
+    parser.add_argument(
+        "--build-index",
+        action="store_true",
+        help="embed the churn dataset and upsert it into Qdrant, then exit (chapter 6, part 2)",
+    )
+    parser.add_argument(
+        "--dsize",
+        type=int,
+        default=DEFAULT_DSIZE,
+        help=f"duplication factor for --build-index (default: {DEFAULT_DSIZE}, the book's value)",
+    )
+    parser.add_argument(
+        "--collection",
+        help=f"Qdrant collection for --build-index / --rag qdrant "
+        f"(env MY_RAG_QDRANT_COLLECTION; default: {DEFAULT_QDRANT_COLLECTION})",
+    )
+    parser.add_argument(
+        "--embedding-dimension",
+        type=int,
+        help="vector dimension for the Qdrant collection (env MY_RAG_EMBEDDING_DIMENSION; default: "
+        "provider embedding dimension, 384 for Ollama all-minilm)",
     )
     parser.add_argument(
         "--embed",
@@ -339,6 +379,20 @@ def run_index_query(args, settings: Settings) -> int:
     return 0
 
 
+def collect_churn_dataset(path: Path) -> int:
+    """Download the chapter 6 bank-customer-churn dataset to ``path`` (ch. 6, part 1)."""
+    from .scaling import collect_churn
+
+    print(f"downloading the bank-customer churn dataset -> {path} ...", file=sys.stderr)
+    try:
+        result = collect_churn(path, progress=lambda line: print(line, file=sys.stderr))
+    except Exception as exc:  # no network, unwritable path, ...
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"wrote {result}", file=sys.stderr)
+    return 0
+
+
 def collect_images(image_dir: Path, limit: int) -> int:
     """Save the first ``limit`` VisDrone samples to ``image_dir`` (ch. 4)."""
     from .multimodal import collect_visdrone  # lazy: Deep Lake is a heavy import
@@ -409,6 +463,121 @@ def run_multimodal_query(args, settings: Settings) -> int:
     return 0
 
 
+def churn_report(csv_path: Path) -> int:
+    """Print the chapter 6 EDA and KMeans segmentation (ch. 6, part 1)."""
+    from .scaling import (
+        CLUSTER_FEATURES,
+        age_overview,
+        cluster_churn,
+        exited_overview,
+        load_churn,
+        salary_overview,
+        score_clusters,
+    )
+
+    try:
+        rows = load_churn(csv_path)
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"Loaded {len(rows)} customers from {csv_path}")
+    exited = exited_overview(rows)
+    age = age_overview(rows)
+    salary = salary_overview(rows)
+    print(
+        f"Exited=1: {exited.sum_exited} | Complain=1: {exited.sum_complain} | "
+        f"complain over exited: {exited.complain_over_exited:.2f}%"
+    )
+    print(f"Age >= {age.age:g} among exited: {age.aged_and_over} ({age.aged_over_among_exited:.2f}%)")
+    print(
+        f"EstimatedSalary >= {salary.threshold:g} among exited: {salary.salary_over} "
+        f"({salary.salary_over_among_exited:.2f}%)"
+    )
+    print(f"Cluster selection on {', '.join(CLUSTER_FEATURES)}:")
+    for score in score_clusters(rows):
+        print(
+            f"  k={score.n_clusters}: silhouette {score.silhouette:.4f}, "
+            f"Davies-Bouldin {score.davies_bouldin:.4f}"
+        )
+    _, summary = cluster_churn(rows)
+    print("KMeans k=2 classes:")
+    for cluster in sorted(summary.counts):
+        print(
+            f"  class {cluster}: {summary.counts[cluster]} customers, "
+            f"{summary.complaints[cluster]} complain, {summary.exited[cluster]} exited"
+        )
+    return 0
+
+
+def build_vector_index(args, settings: Settings) -> int:
+    """Embed the churn dataset and upsert it into Qdrant (ch. 6, part 2)."""
+    from .scaling import load_churn, open_qdrant_index, to_records, upsert_records
+
+    csv_path = Path(args.output) if args.output else DEFAULT_CHURN_CSV
+    collection = args.collection or settings.qdrant_collection
+    print(f"building Qdrant collection {collection} (dsize={args.dsize}) from {csv_path} ...", file=sys.stderr)
+    index = None
+    try:
+        records = to_records(load_churn(csv_path))
+        index = open_qdrant_index(
+            settings, collection=args.collection, dimension=args.embedding_dimension
+        )
+        result = upsert_records(
+            records,
+            create_embedding_function(settings),
+            index,
+            collection=index.collection,
+            dsize=args.dsize,
+            progress=lambda line: print(line, file=sys.stderr),
+        )
+    except Exception as exc:  # missing dataset, embedding endpoint down, ...
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        if index is not None:
+            index.close()
+    print(
+        f"upserted {result.vectors} vectors ({result.records} records × {result.dsize}, "
+        f"{result.dimension}-dim) into {result.collection}",
+        file=sys.stderr,
+    )
+    return 0
+
+
+def run_qdrant_query(args, settings: Settings) -> int:
+    """Draft a retention email from the record's nearest Qdrant neighbours (ch. 6)."""
+    from .scaling import DEFAULT_QUERY_RECORD, CustomerRAG, open_qdrant_index
+
+    record = args.query or DEFAULT_QUERY_RECORD
+    index = None
+    try:
+        index = open_qdrant_index(
+            settings, collection=args.collection, dimension=args.embedding_dimension, create=False
+        )
+        print(f"rag: qdrant (collection: {index.collection}, top_k={args.top_k})", file=sys.stderr)
+        answer = CustomerRAG(settings, index, top_k=args.top_k).answer(record)
+    except Exception as exc:  # missing collection, embedding endpoint down, ...
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        if index is not None:
+            index.close()
+    if not answer.matches:
+        print("note: the collection is empty; run: python -m my_rag --build-index", file=sys.stderr)
+    if args.show_context:
+        print("Retrieved context:")
+        print("---------------")
+        for match in answer.matches:
+            print(f"[{match.id}] score {match.score:.4f}")
+            print(textwrap.fill(match.text, width=args.width))
+            print()
+        print("---------------")
+    print(format_response(answer.response, width=args.width))
+    print()
+    print(f"Matches: {len(answer.matches)} | Response Time: {answer.elapsed:.2f} seconds")
+    return 0
+
+
 def run_adaptive_query(args, settings: Settings) -> int:
     """Answer ``args.query`` through the ranking-adaptive RAG with human feedback (ch. 5)."""
     from .adaptive import AdaptiveRAG, NoMatchError, evaluate, strategy_for_ranking
@@ -459,6 +628,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.query = DEFAULT_MULTIMODAL_QUERY
         elif args.rag == "adaptive":
             args.query = DEFAULT_ADAPTIVE_QUERY
+        elif args.rag == "qdrant":
+            args.query = DEFAULT_QUERY_RECORD
         else:
             args.query = DEFAULT_QUERY
 
@@ -471,7 +642,12 @@ def main(argv: Optional[list[str]] = None) -> int:
             return collect_images(Path(args.image_dir) if args.image_dir else DEFAULT_IMAGE_DIR, args.limit)
         if args.corpus == "drone":
             return collect_corpus(Path(args.output) if args.output else DEFAULT_DRONE_OUTPUT, DRONE_URLS)
+        if args.corpus == "churn":
+            return collect_churn_dataset(Path(args.output) if args.output else DEFAULT_CHURN_CSV)
         return collect_corpus(Path(args.output) if args.output else DEFAULT_CORPUS, WIKI_URLS)
+
+    if args.churn_report:
+        return churn_report(Path(args.output) if args.output else DEFAULT_CHURN_CSV)
 
     load_env()
     settings = Settings.from_env(
@@ -482,6 +658,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         think=args.think,
         vision_model=args.vision_model,
     )
+
+    if args.build_index:
+        return build_vector_index(args, settings)
 
     if args.embed:
         store_path = Path(args.vector_store) if args.vector_store else DEFAULT_VECTOR_STORE
@@ -496,6 +675,9 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     if args.rag == "adaptive":
         return run_adaptive_query(args, settings)
+
+    if args.rag == "qdrant":
+        return run_qdrant_query(args, settings)
 
     info = f"[{settings.provider}] {settings.model} @ {settings.base_url}"
     if settings.provider == "ollama":

@@ -22,12 +22,14 @@ PROVIDER_DEFAULTS: dict[str, dict[str, str]] = {
         "base_url": "http://localhost:11434/v1",
         "model": "qwen2.5:3b",
         "embedding_model": "all-minilm",
+        "embedding_dimension": "384",
         "vision_model": "gemma3:12b",
     },
     "openai": {
         "base_url": "https://api.openai.com/v1",
         "model": "gpt-4o",
         "embedding_model": "text-embedding-3-small",
+        "embedding_dimension": "1536",
         "vision_model": "gpt-4o",
     },
 }
@@ -48,6 +50,19 @@ DEFAULT_BOXED_DIR = Path("data/processed/multimodal")
 
 #: Where chapter 5's human-expert feedback loop saves its flashcard (git-ignored).
 DEFAULT_EXPERT_FEEDBACK = Path("data/processed/adaptive/expert_feedback.txt")
+
+#: Where chapter 6's bank-customer-churn dataset is downloaded (git-ignored).
+DEFAULT_CHURN_CSV = Path("data/raw/churn/data1.csv")
+
+#: Where chapter 6's Qdrant index persists (git-ignored). Qdrant's Python client
+#: embeds an on-disk engine, so no server or API key is needed; set ``QDRANT_URL``
+#: to point at a remote server instead.
+DEFAULT_QDRANT_PATH = Path("data/processed/qdrant")
+
+#: Chapter 6 Qdrant collection. The book names its Pinecone index for the 50 000
+#: vectors (10 000 customer records duplicated 5 times); the same name is reused
+#: here as the collection name (``MY_RAG_QDRANT_COLLECTION`` overrides it).
+DEFAULT_QDRANT_COLLECTION = "bank-index-50000"
 
 #: Character chunk size for the vector store, matching the book's notebook.
 CHUNK_SIZE = 1000
@@ -85,7 +100,12 @@ class Settings:
     temperature: float = 0.1
     think: bool = False
     embedding_model: str = ""
+    embedding_dimension: int = 0
     vision_model: str = ""
+    qdrant_url: str = ""
+    qdrant_api_key: str = ""
+    qdrant_path: Path = DEFAULT_QDRANT_PATH
+    qdrant_collection: str = DEFAULT_QDRANT_COLLECTION
 
     @classmethod
     def from_env(
@@ -98,6 +118,8 @@ class Settings:
         think: Optional[bool] = None,
         embedding_model: Optional[str] = None,
         vision_model: Optional[str] = None,
+        embedding_dimension: Optional[int] = None,
+        qdrant_collection: Optional[str] = None,
     ) -> "Settings":
         """Build settings from explicit overrides, then env vars, then defaults."""
         provider = (provider or os.environ.get("MY_RAG_PROVIDER") or DEFAULT_PROVIDER).strip().lower()
@@ -114,6 +136,16 @@ class Settings:
             vision_model
             or os.environ.get("MY_RAG_VISION_MODEL")
             or defaults.get("vision_model", "")
+        )
+
+        if embedding_dimension is None:
+            override = os.environ.get("MY_RAG_EMBEDDING_DIMENSION")
+            embedding_dimension = int(override or defaults.get("embedding_dimension", "0") or 0)
+
+        qdrant_collection = (
+            qdrant_collection
+            or os.environ.get("MY_RAG_QDRANT_COLLECTION")
+            or DEFAULT_QDRANT_COLLECTION
         )
 
         api_key = os.environ.get("OPENAI_API_KEY", "")
@@ -134,5 +166,10 @@ class Settings:
             temperature=temperature,
             think=think,
             embedding_model=embedding_model,
+            embedding_dimension=embedding_dimension,
             vision_model=vision_model,
+            qdrant_url=os.environ.get("QDRANT_URL", "").strip(),
+            qdrant_api_key=os.environ.get("QDRANT_API_KEY", "").strip(),
+            qdrant_path=Path(os.environ.get("MY_RAG_QDRANT_PATH") or DEFAULT_QDRANT_PATH),
+            qdrant_collection=qdrant_collection,
         )
