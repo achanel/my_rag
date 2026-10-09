@@ -21,7 +21,7 @@ extensible Python package — the notebooks stay as references, not as the code.
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env   # OPENAI_API_KEY / ACTIVELOOP_TOKEN / PINECONE_API_KEY
+cp .env.example .env   # OPENAI_API_KEY / ACTIVELOOP_TOKEN (ch. 6 Qdrant is local, no key)
 ```
 
 ### 2. Models (free, local, via Ollama)
@@ -49,7 +49,7 @@ Caveats:
 
 - Embedding size differs (OpenAI 1536, `all-minilm` 384, `nomic-embed-text` 768,
   `bge-m3` 1024). Re-embed data with the same model you query with, and match the
-  Pinecone index dimension.
+  vector collection's dimension.
 - LlamaIndex (ch. 3, 7): use `llama-index-llms-ollama` /
   `llama-index-embeddings-ollama`.
 - Fine-tuning (ch. 9) has no Ollama equivalent; on Apple Silicon use LoRA via
@@ -79,8 +79,9 @@ for its commands, substitutions and cleanup — the table below is the map.
 | [3 · Deep Lake + LlamaIndex](notebooks/03_deep_lake_llamaindex/README.md) | Four LlamaIndex index types over a drone/UAV corpus |
 | [4 · Multimodal, modular RAG](notebooks/04_multimodal_modular_rag/README.md) | Text + VisDrone images + a vision model, with similarity scores |
 | [5 · Adaptive RAG with human feedback](notebooks/05_adaptive_rag_human_feedback/README.md) | Panel ranking picks the generator input; a human-rating loop |
+| [6 · Scaling RAG with Qdrant](notebooks/06_scaling_qdrant/README.md) | Bank-churn dataset, NumPy KMeans segmentation, and a Qdrant-backed index (embed → duplicate → upsert) |
 
-`notebooks/06…10` are placeholders for the remaining chapters.
+`notebooks/07…10` are placeholders for the remaining chapters.
 
 ## How it works
 
@@ -102,6 +103,7 @@ Each chapter adds a new implementation of it, or a new backend:
 | 3 | `IndexQueryEngine` (answers itself via LlamaIndex) |
 | 4 | `EmbeddingIndex` (in memory) |
 | 5 | none — `RAGPipeline` over the ranking-selected input |
+| 6 | a Qdrant collection (`my_rag.scaling.open_qdrant_index`) |
 
 ## Command line
 
@@ -122,6 +124,7 @@ python -m my_rag --no-stream --width 100 "..." # buffer + wrap instead of stream
 | `index` | 3 | [link](notebooks/03_deep_lake_llamaindex/README.md) |
 | `multimodal` | 4 | [link](notebooks/04_multimodal_modular_rag/README.md) |
 | `adaptive` | 5 | [link](notebooks/05_adaptive_rag_human_feedback/README.md) |
+| `qdrant` | 6 | [link](notebooks/06_scaling_qdrant/README.md) |
 
 `--provider openai` runs everything against OpenAI instead of Ollama.
 
@@ -129,8 +132,10 @@ python -m my_rag --no-stream --width 100 "..." # buffer + wrap instead of stream
 
 Resolved as CLI flags → environment → per-provider defaults (`my_rag/config.py`).
 Read from `.env`: `MY_RAG_PROVIDER`, `MY_RAG_MODEL`, `MY_RAG_EMBEDDING_MODEL`,
-`MY_RAG_VISION_MODEL`, `MY_RAG_TEMPERATURE`, `MY_RAG_THINK`, `OPENAI_BASE_URL`,
-`OPENAI_API_KEY`.
+`MY_RAG_EMBEDDING_DIMENSION`, `MY_RAG_VISION_MODEL`, `MY_RAG_TEMPERATURE`,
+`MY_RAG_THINK`, `OPENAI_BASE_URL`, `OPENAI_API_KEY`. Chapter 6 adds
+`MY_RAG_QDRANT_COLLECTION`, `MY_RAG_QDRANT_PATH`, and `QDRANT_URL` /
+`QDRANT_API_KEY` for a remote Qdrant server.
 
 ## Extending
 
@@ -146,13 +151,13 @@ Read from `.env`: `MY_RAG_PROVIDER`, `MY_RAG_MODEL`, `MY_RAG_EMBEDDING_MODEL`,
 ## Layout
 
 - `my_rag/` — the application package (`config`, `llm`, `embeddings`,
-  `vectorstore`, `indexing`, `multimodal`, `adaptive`, `collection`, `corpus`,
-  `pipeline`, `retrieval`, `cli`).
+  `vectorstore`, `indexing`, `multimodal`, `adaptive`, `scaling`, `collection`,
+  `corpus`, `pipeline`, `retrieval`, `cli`).
 - `notebooks/01_rag_overview` … `notebooks/10_video_stock_production` — one per
   chapter of the reference book; see each folder's `README.md`.
-- `tests/` — offline unit tests for chapters 4–5. Run with
+- `tests/` — offline unit tests for chapters 4–6. Run with
   `python -m unittest discover -s tests`.
-- `docs/atlas.html` — infographic for chapters 1–5.
+- `docs/atlas.html` — infographic for chapters 1–6.
 - `commons/` — shared helpers (API keys, HTTP sessions) extracted as you go.
 - `data/raw`, `data/processed` — input and derived datasets (git-ignored).
 - `models/` — local model checkpoints / cache (git-ignored).
@@ -166,4 +171,6 @@ and Deep Lake vector-store integrations. `accelerate`, `deepspeed`,
 training/fine-tuning and inference optimization if you extend beyond the book's
 notebooks (note: `deepspeed`/`bitsandbytes` target Linux+CUDA primarily — expect
 limited functionality on macOS). `pandas`, `scipy`, `beautifulsoup4`, `requests`
-cover data prep and scraping.
+cover data prep and scraping. Chapter 6 adds `qdrant-client` for the vector index;
+its embedded engine runs locally, so no server or key is needed (the data, EDA and
+clustering commands work without it).

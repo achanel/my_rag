@@ -294,9 +294,9 @@ html { scroll-behavior: smooth; }
 <div class="wrap">
 
 <header class="masthead">
-  <p class="eyebrow">my_rag · конспект глав 1–5 «RAG-Driven Generative AI» (Rothman)</p>
+  <p class="eyebrow">my_rag · конспект глав 1–6 «RAG-Driven Generative AI» (Rothman)</p>
   <h1>Атлас <span>my_rag</span></h1>
-  <p class="lead">Пять глав собирают один и тот же пайплайн: <b>найти</b> контекст, <b>склеить</b> его с вопросом, <b>сгенерировать</b> ответ. От главы к главе меняется только то, что ищем и как. Цвет во всех схемах значит одно и то же:</p>
+  <p class="lead">Шесть глав собирают один и тот же пайплайн: <b>найти</b> контекст, <b>склеить</b> его с вопросом, <b>сгенерировать</b> ответ. От главы к главе меняется только то, что ищем и как. Цвет во всех схемах значит одно и то же:</p>
   <div class="legend" aria-label="Цвета стадий">
     <span class="chip" data-stage="ingest"><span class="dot"></span><b>Данные</b> сбор, чанки, эмбеддинги</span>
     <span class="chip" data-stage="retrieve"><span class="dot"></span><b>Retrieve</b> поиск контекста</span>
@@ -313,6 +313,7 @@ html { scroll-behavior: smooth; }
     <li><a href="#ch3"><b>3</b> LlamaIndex</a></li>
     <li><a href="#ch4"><b>4</b> Мультимодальный</a></li>
     <li><a href="#ch5"><b>5</b> Адаптивный</a></li>
+    <li><a href="#ch6"><b>6</b> Qdrant</a></li>
     <li><a href="#cheat"><b>⌘</b> Шпаргалка</a></li>
   </ol>
 </nav>
@@ -353,7 +354,7 @@ html { scroll-behavior: smooth; }
     </div>
 
     <div class="block">
-      <div class="block-title"><h3>Один протокол, пять реализаций</h3><span class="eyebrow">Retriever</span></div>
+      <div class="block-title"><h3>Один протокол, шесть реализаций</h3><span class="eyebrow">Retriever</span></div>
       <div class="formula">class Retriever(Protocol):
     def retrieve(self, query, *, top_k=1) -&gt; list[str]</div>
       <p class="note" style="margin-top:12px">Любой объект с таким методом подходит в <code>RAGPipeline</code>. Это и есть точка расширения, на которой держатся все главы:</p>
@@ -364,6 +365,8 @@ html { scroll-behavior: smooth; }
           <tr><td>2</td><td><code>DeepLakeVectorStore</code></td></tr>
           <tr><td>3</td><td><code>IndexQueryEngine</code> (отвечает сам через LlamaIndex)</td></tr>
           <tr><td>4</td><td><code>EmbeddingIndex</code> (в памяти)</td></tr>
+          <tr><td>5</td><td>нет — <code>RAGPipeline</code> получает вход, выбранный рейтингом</td></tr>
+          <tr><td>6</td><td>коллекция Qdrant, обёрнутая <code>CustomerRAG</code></td></tr>
         </table>
       </div>
     </div>
@@ -373,20 +376,21 @@ html { scroll-behavior: smooth; }
     <div class="block-title"><h3>Как рос пакет</h3><span class="eyebrow">модуль × глава</span></div>
     <div class="table-wrap">
       <table class="matrix">
-        <thead><tr><th>Модуль</th><th class="c">1</th><th class="c">2</th><th class="c">3</th><th class="c">4</th><th class="c">5</th><th>Главное внутри</th></tr></thead>
+        <thead><tr><th>Модуль</th><th class="c">1</th><th class="c">2</th><th class="c">3</th><th class="c">4</th><th class="c">5</th><th class="c">6</th><th>Главное внутри</th></tr></thead>
         <tbody>
-          <tr><td><code>config.py</code></td><td class="c mark-new" title="создан">●</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td><code>Settings.from_env</code>: флаг CLI → env → дефолт провайдера; пути к данным</td></tr>
-          <tr><td><code>llm.py</code></td><td class="c mark-new">●</td><td class="c mark-use" title="используется">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c mark-use">○</td><td><code>LLM</code> (ABC), <code>@register_provider</code>, OpenAI-совместимый клиент</td></tr>
-          <tr><td><code>pipeline.py</code></td><td class="c mark-new">●</td><td class="c mark-use">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c mark-use">○</td><td><code>RAGPipeline</code>, протокол <code>Retriever</code></td></tr>
-          <tr><td><code>corpus.py</code></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td>28 абзацев книги про RAG (<code>DB_RECORDS</code>)</td></tr>
-          <tr><td><code>retrieval.py</code></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-use">○</td><td>Keyword / TF-IDF Vector / TF-IDF Index / Modular; в гл. 5 <code>TfidfIndex</code> даёт косинус оценки</td></tr>
-          <tr><td><code>cli.py</code></td><td class="c mark-new">●</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td>каждая глава добавляет флаги: <code>--rag</code>, <code>--collect</code>, <code>--ranking</code>…</td></tr>
-          <tr><td><code>collection.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c mark-ext">◐</td><td class="c mark-use">○</td><td class="c mark-use">○</td><td>скачивание и чистка страниц → один Markdown-файл; в гл. 5 <code>fetch_article</code></td></tr>
-          <tr><td><code>embeddings.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-ext">◐</td><td class="c"></td><td>эмбеддинги через <code>/v1/embeddings</code>; в гл. 4 + <code>EmbeddingIndex</code>, косинус</td></tr>
-          <tr><td><code>vectorstore.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td><code>chunk_text</code>, Deep Lake <code>VectorStore</code></td></tr>
-          <tr><td><code>indexing.py</code></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td>4 индекса LlamaIndex, обход бага numpy 2</td></tr>
-          <tr><td><code>multimodal.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td>текст + картинки + vision-модель, оценки</td></tr>
-          <tr><td><code>adaptive.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td>рейтинг → стратегия, оценщик, журнал человеческих оценок</td></tr>
+          <tr><td><code>config.py</code></td><td class="c mark-new" title="создан">●</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td><code>Settings.from_env</code>: флаг CLI → env → дефолт провайдера; путь, коллекция и размерность Qdrant</td></tr>
+          <tr><td><code>llm.py</code></td><td class="c mark-new">●</td><td class="c mark-use" title="используется">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c mark-use">○</td><td><code>LLM</code> (ABC), <code>@register_provider</code>, OpenAI-совместимый клиент</td></tr>
+          <tr><td><code>pipeline.py</code></td><td class="c mark-new">●</td><td class="c mark-use">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c"></td><td><code>RAGPipeline</code>, протокол <code>Retriever</code></td></tr>
+          <tr><td><code>corpus.py</code></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td>28 абзацев книги про RAG (<code>DB_RECORDS</code>)</td></tr>
+          <tr><td><code>retrieval.py</code></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td>Keyword / TF-IDF Vector / TF-IDF Index / Modular; в гл. 5 <code>TfidfIndex</code> даёт косинус оценки</td></tr>
+          <tr><td><code>cli.py</code></td><td class="c mark-new">●</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td>каждая глава добавляет флаги: <code>--rag</code>, <code>--collect</code>, <code>--ranking</code>, <code>--build-index</code>…</td></tr>
+          <tr><td><code>collection.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c mark-ext">◐</td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c"></td><td>скачивание и чистка страниц → один Markdown-файл; в гл. 5 <code>fetch_article</code></td></tr>
+          <tr><td><code>embeddings.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-ext">◐</td><td class="c"></td><td class="c mark-use">○</td><td>эмбеддинги через <code>/v1/embeddings</code>; в гл. 4 + <code>EmbeddingIndex</code>, в гл. 6 их пишет Qdrant</td></tr>
+          <tr><td><code>vectorstore.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td class="c"></td><td><code>chunk_text</code>, Deep Lake <code>VectorStore</code></td></tr>
+          <tr><td><code>indexing.py</code></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td>4 индекса LlamaIndex, обход бага numpy 2</td></tr>
+          <tr><td><code>multimodal.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td>текст + картинки + vision-модель, оценки</td></tr>
+          <tr><td><code>adaptive.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td>рейтинг → стратегия, оценщик, журнал человеческих оценок</td></tr>
+          <tr><td><code>scaling.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td>датасет churn, NumPy KMeans, эмбеддинги → Qdrant, письмо клиенту</td></tr>
         </tbody>
       </table>
     </div>
@@ -855,6 +859,91 @@ mean = round(63 / 21, 2) = 3.0</div>
   </div>
 </section>
 
+<!-- ================= CHAPTER 6 ================= -->
+<section class="chapter" id="ch6">
+  <div class="station" aria-hidden="true">6</div>
+  <div class="chapter-head">
+    <p class="eyebrow">Глава 6 · Scaling RAG with Qdrant</p>
+    <h2>Индекс стал управляемым, а корпус — таблицей клиентов банка</h2>
+    <p class="lead">Три пайплайна: собрать датасет (10 000 клиентов банка), продублировать эмбеддинги и залить их в Qdrant, затем по записи клиента достать похожих и сгенерировать письмо-удержание. Книга использует платный Pinecone; Qdrant — открытый и работает локально без ключа.</p>
+    <div class="refs"><code>scaling.py</code><code>embeddings.py</code><code>llm.py</code><code>config.py</code></div>
+  </div>
+
+  <div class="block">
+    <div class="block-title"><h3>Три пайплайна — три команды</h3><span class="eyebrow">--collect churn → --build-index → --rag qdrant</span></div>
+    <div class="stack">
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">Пайплайн 1 · данные <code>--collect --corpus churn</code> + <code>--churn-report</code></p>
+        <div class="flow">
+          <div class="node" data-stage="ingest"><span class="k">данные</span><b>data1.csv</b><small>10 000 клиентов, 14 колонок; RowNumber/Surname/Gender/Geography уже убраны</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="ingest"><span class="k">данные</span><b>to_records()</b><small>строка → «колонка: значение …» — один чанк</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="plain"><span class="k">EDA</span><b>exited / age / salary</b><small>complain 100.29% от exited; age≥50 — 31.1%; salary&gt;100k — 51.3%</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="augment"><span class="k">ML</span><b>kmeans(k=2)</b><small>NumPy k-means++ вместо sklearn; добавляет <code>class</code></small></div>
+        </div>
+      </div>
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">Пайплайн 2 · индекс <code>--build-index</code></p>
+        <div class="flow">
+          <div class="node" data-stage="ingest"><span class="k">данные</span><b>embed_in_batches()</b><small>батчами по 1000; Ollama <code>all-minilm</code>, 384 числа</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="ingest"><span class="k">данные</span><b>×dsize (×5)</b><small>10 000 → 50 000 векторов</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="ingest"><span class="k">хранилище</span><b>Qdrant upsert</b><small>Cosine, батчи ≤4 МБ; <code>payload.text</code></small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="retrieve"><span class="k">коллекция</span><b>bank-index-50000</b><small>локальный движок <code>data/processed/qdrant</code>; сервер — через <code>QDRANT_URL</code></small></div>
+        </div>
+      </div>
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">Пайплайн 3 · генерация <code>--rag qdrant</code></p>
+        <div class="flow">
+          <div class="node" data-stage="plain"><span class="k">вход</span><b>запись клиента</b><small>«Customer Henderson …»</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="retrieve"><span class="k">retrieve</span><b>index.query(top_k)</b><small>ближайшие записи + score</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="augment"><span class="k">augment</span><b>EMAIL_QUERY_PROMPT</b><small>+ запись + склеенный контекст</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="generate"><span class="k">generate</span><b>community manager</b><small>письмо-удержание; в книге gpt-4o</small></div>
+        </div>
+      </div>
+    </div>
+    <p class="note" style="margin-top:12px">Все три пайплайна работают офлайн: пайплайн 1 — numpy на 10 000 строк (~3 с), 2–3 — встроенный движок Qdrant без ключа. Размерность коллекции = размерность модели эмбеддингов (384 у <code>all-minilm</code>, 1536 у OpenAI).</p>
+  </div>
+
+  <div class="grid-2">
+    <div class="block">
+      <div class="block-title"><h3>Кто уходит из банка</h3><span class="eyebrow">реальный data1.csv</span></div>
+      <div class="bars" id="scale-chart"></div>
+      <p class="axis-note">Доли от 2 038 ушедших клиентов. Жалоба почти совпадает с уходом: 2 044 пожаловались против 2 038 ушли.</p>
+    </div>
+    <div class="block">
+      <div class="block-title"><h3>Сегментация KMeans</h3><span class="eyebrow">k = 2, class 0 / class 1</span></div>
+      <div class="bars" id="cluster-chart"></div>
+      <p class="axis-note">k-means++ на 6 MinMax-масштабированных признаках. Один кластер — это почти в точности те, кто жаловался и ушёл (2 036 жалоб, 2 037 уходов из 2 039).</p>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="callout">
+      <h4>Qdrant вместо платного Pinecone</h4>
+      <p>Книга держит индекс в облаке Pinecone (нужен <code>PINECONE_API_KEY</code>). Qdrant открытый: тот же <code>Cosine</code> и размерность модели эмбеддингов, но клиент несёт встроенный движок и пишет на диск в <code>data/processed/qdrant</code>. Сервер — через <code>QDRANT_URL</code>, код не меняется.</p>
+    </div>
+    <div class="callout">
+      <h4>Дублирование ради масштаба</h4>
+      <p><code>upsert_records(dsize=5)</code> повторяет каждый вектор пять раз — это чисто учебный приём книги, чтобы дотянуть индекс до 50 000. Поиск вернёт те же записи; ценность в том, чтобы пройти путь «эмбеддинг → батч-апсерт → запрос» на большом объёме.</p>
+    </div>
+  </div>
+
+  <div class="quiz">
+    <p class="eyebrow">Проверь себя</p>
+    <details><summary>Почему размерность индекса нельзя жёстко зашить в 1536?</summary><div>В книге эмбеддинги делает OpenAI <code>text-embedding-3-small</code> (1536). Локальный <code>all-minilm</code> даёт 384. Поэтому размерность берётся из <code>MY_RAG_EMBEDDING_DIMENSION</code> / дефолта провайдера, иначе Qdrant отвергнет векторы другой длины.</div></details>
+    <details><summary>Зачем KMeans, если он не влияет на индекс?</summary><div>Это сегментация из пайплайна 1 книги («market deep-learning segment analysis»): она показывает, что жалоба и уход — почти один и тот же сегмент. Индекс строится по всем колонкам записи, <code>class</code> в него не входит.</div></details>
+    <details><summary>Что произойдёт при повторном <code>--build-index</code>?</summary><div>Id генерируются детерминированно (1…N), поэтому повторный upsert перезапишет те же векторы, а не создаст дубликаты. Это отличается от <code>--embed</code> главы 2, где хранилище пересоздаётся целиком.</div></details>
+  </div>
+</section>
+
 </div><!-- /.line -->
 
 <!-- ================= CHEATSHEET ================= -->
@@ -876,6 +965,9 @@ mean = round(63 / 21, 2) = 3.0</div>
         <tr><td>Косинус оценки (гл. 5)</td><td>scikit-learn <code>TfidfVectorizer</code></td><td><code>TfidfIndex</code> на numpy</td></tr>
         <tr><td>Адаптация входа (гл. 5)</td><td><code>ranking</code> 1–5, <code>human_feedback.txt</code></td><td>то же; flashcard — константа <code>HUMAN_FEEDBACK</code>, флаг <code>--ranking</code></td></tr>
         <tr><td>VisDrone</td><td>стрим с hub на каждый запуск</td><td>один раз скачать 20 снимков в <code>data/raw/drone_images</code></td></tr>
+        <tr><td>Индекс (гл. 6)</td><td>Pinecone serverless, <code>dimension=1536</code>, API-ключ</td><td>Qdrant: локальный движок или сервер, размерность = модель эмбеддингов (384 у <code>all-minilm</code>)</td></tr>
+        <tr><td>Сегментация (гл. 6)</td><td>scikit-learn <code>KMeans</code> + <code>MinMaxScaler</code></td><td><code>kmeans</code> / <code>minmax_scale</code> на numpy</td></tr>
+        <tr><td>Датасет (гл. 6)</td><td>скачивание с Kaggle</td><td>готовый <code>data1.csv</code> из репозитория книги</td></tr>
       </tbody>
     </table>
   </div>
@@ -919,6 +1011,13 @@ mean = round(63 / 21, 2) = 3.0</div>
         <div class="cmd"><code>python -m my_rag --rag adaptive --ranking 1 "What is an LLM?"</code><button class="copy" type="button">Копировать</button><span class="what">рейтинг 1–2: без RAG, голый запрос</span></div>
         <div class="cmd"><code>python -m my_rag --rag adaptive --ranking 1 --rating 3 "What is an LLM?"</code><button class="copy" type="button">Копировать</button><span class="what">записать оценку в журнал: Rankings 21, Score 3.0</span></div>
       </div>
+      <p class="eyebrow">Глава 6</p>
+      <div class="cmds">
+        <div class="cmd"><code>python -m my_rag --collect --corpus churn</code><button class="copy" type="button">Копировать</button><span class="what">data1.csv → data/raw/churn (10 000 клиентов)</span></div>
+        <div class="cmd"><code>python -m my_rag --churn-report</code><button class="copy" type="button">Копировать</button><span class="what">EDA + выбор k + сегментация KMeans; офлайн</span></div>
+        <div class="cmd"><code>python -m my_rag --build-index</code><button class="copy" type="button">Копировать</button><span class="what">эмбеддинги ×5 → Qdrant (локально, без ключа)</span></div>
+        <div class="cmd"><code>python -m my_rag --rag qdrant --show-context --top-k 1</code><button class="copy" type="button">Копировать</button><span class="what">похожие клиенты → письмо-удержание</span></div>
+      </div>
     </div>
   </div>
 
@@ -934,12 +1033,14 @@ mean = round(63 / 21, 2) = 3.0</div>
         <tr><td><code>data/raw/drone_images/</code></td><td>гл. 4 <code>--corpus visdrone</code></td><td>гл. 4 (картиночный модуль)</td></tr>
         <tr><td><code>data/processed/multimodal/</code></td><td>гл. 4 <code>draw_boxes()</code></td><td>ты: открыть и посмотреть рамки</td></tr>
         <tr><td><code>data/processed/adaptive/expert_feedback.txt</code></td><td>гл. 5 <code>save_expert_feedback()</code></td><td>гл. 5 <code>load_expert_feedback()</code></td></tr>
+        <tr><td><code>data/raw/churn/data1.csv</code></td><td>гл. 6 <code>--collect --corpus churn</code></td><td>гл. 6 <code>--churn-report</code> / <code>--build-index</code></td></tr>
+        <tr><td><code>data/processed/qdrant</code> (коллекция <code>bank-index-50000</code>)</td><td>гл. 6 <code>--build-index</code></td><td>гл. 6 <code>--rag qdrant</code></td></tr>
       </tbody>
     </table>
   </div>
 </section>
 
-<footer>Числа на странице взяты из твоего репозитория и локального Ollama на 6 октября 2026: размер хранилища, разрезы чанков, вектор вопроса, ранжирование снимков и длины входов главы 5.</footer>
+<footer>Числа на странице взяты из твоего репозитория и локального Ollama на 6 октября 2026: размер хранилища, разрезы чанков, вектор вопроса, ранжирование снимков, длины входов главы 5 и статистика датасета churn для главы 6 (10 000 строк, KMeans k=2).</footer>
 </div>
 
 <div class="tip" id="tip" hidden></div>
@@ -1178,6 +1279,19 @@ if (typeof module !== 'undefined') module.exports = RAG;
   ];
   bars(document.getElementById('adopt-chart'), ADOPT, { max: 214, stage: 'augment' });
 
+  var EXIT = [
+    { k: 'complain/exited', v: 100.29, label: '100.3%', tip: '2 044 пожаловались / 2 038 ушли — жалоба почти равна уходу' },
+    { k: 'salary ≥ 100k', v: 51.28, label: '51.3%', tip: '1 045 из 2 038 ушедших' },
+    { k: 'age ≥ 50', v: 31.11, label: '31.1%', tip: '634 из 2 038 ушедших' }
+  ];
+  bars(document.getElementById('scale-chart'), EXIT, { max: 100, stage: 'ingest' });
+
+  var CLUST = [
+    { k: 'class 0', v: 2039, label: '2 039', tip: '2036 complain · 2037 exited — сегмент «жалоба + уход»' },
+    { k: 'class 1', v: 7961, label: '7 961', dim: true, tip: '8 complain · 1 exited — все остальные' }
+  ];
+  bars(document.getElementById('cluster-chart'), CLUST, { max: 8000, stage: 'retrieve' });
+
   /* ---------- tooltip ---------- */
   var tip = document.getElementById('tip');
   function showTip(el, x, y) {
@@ -1222,7 +1336,7 @@ if (typeof module !== 'undefined') module.exports = RAG;
         links.forEach(function (a) { a.classList.toggle('is-active', a.getAttribute('href') === '#' + en.target.id); });
       });
     }, { rootMargin: '-45% 0px -50% 0px' });
-    ['core', 'ch1', 'ch2', 'ch3', 'ch4', 'ch5', 'cheat'].forEach(function (id) { var s = document.getElementById(id); if (s) io.observe(s); });
+    ['core', 'ch1', 'ch2', 'ch3', 'ch4', 'ch5', 'ch6', 'cheat'].forEach(function (id) { var s = document.getElementById(id); if (s) io.observe(s); });
   }
 })();
 </script>
