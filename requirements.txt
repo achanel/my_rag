@@ -7,12 +7,15 @@ llama-index-core==0.14.25
 llama-index-embeddings-ollama==0.10.0
 llama-index-llms-ollama==0.11.0
 llama-index-vector-stores-deeplake==0.6.0
+matplotlib==3.11.2
 neural_compressor==3.9
+networkx==3.7
 numpy==2.5.3
 onnx==1.23.0
 openai==3.17.0
 pandas==3.0.6
 pillow==10.4.0
+pyvis==0.3.2
 qdrant-client==1.19.1
 requests==2.34.2
 scipy==1.18.1

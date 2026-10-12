@@ -64,6 +64,19 @@ DEFAULT_QDRANT_PATH = Path("data/processed/qdrant")
 #: here as the collection name (``MY_RAG_QDRANT_COLLECTION`` overrides it).
 DEFAULT_QDRANT_COLLECTION = "bank-index-50000"
 
+#: Where chapter 7's knowledge-graph index (triplets, nodes, embeddings) persists
+#: (git-ignored). The book rebuilds its graph in memory on every run.
+DEFAULT_GRAPH_STORE = Path("data/processed/graph_store")
+
+#: Default folder for the chapter 7 pyvis HTML files (git-ignored).
+DEFAULT_GRAPH_HTML_DIR = Path("data/processed/graph")
+
+#: How many chapter 7 pages build the graph by default. The book's corpus is the
+#: 100-page Marketing citation list, but extraction costs one LLM call per chunk,
+#: so a run over all of it takes hours on a local model; 15 pages (~30 chunks,
+#: ≈2 minutes) keeps the command runnable, ``--limit`` scales it to 100.
+DEFAULT_GRAPH_LIMIT = 15
+
 #: Character chunk size for the vector store, matching the book's notebook.
 CHUNK_SIZE = 1000
 
@@ -106,6 +119,8 @@ class Settings:
     qdrant_api_key: str = ""
     qdrant_path: Path = DEFAULT_QDRANT_PATH
     qdrant_collection: str = DEFAULT_QDRANT_COLLECTION
+    graph_store: Path = DEFAULT_GRAPH_STORE
+    graph_limit: int = DEFAULT_GRAPH_LIMIT
 
     @classmethod
     def from_env(
@@ -172,4 +187,6 @@ class Settings:
             qdrant_api_key=os.environ.get("QDRANT_API_KEY", "").strip(),
             qdrant_path=Path(os.environ.get("MY_RAG_QDRANT_PATH") or DEFAULT_QDRANT_PATH),
             qdrant_collection=qdrant_collection,
+            graph_store=Path(os.environ.get("MY_RAG_GRAPH_STORE") or DEFAULT_GRAPH_STORE),
+            graph_limit=int(os.environ.get("MY_RAG_GRAPH_LIMIT") or DEFAULT_GRAPH_LIMIT),
         )

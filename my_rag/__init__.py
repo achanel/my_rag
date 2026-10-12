@@ -12,7 +12,9 @@ index-based semantic search (:mod:`my_rag.indexing`). Chapter 4 adds multimodal,
 modular RAG over text and drone images (:mod:`my_rag.multimodal`). Chapter 5 adds
 ranking-adaptive RAG with a human-feedback loop (:mod:`my_rag.adaptive`). Chapter 6
 adds the bank-churn dataset, a NumPy KMeans segmentation and a Qdrant-backed index
-(:mod:`my_rag.scaling`; imported directly, like the other optional modules).
+(:mod:`my_rag.scaling`). Chapter 7 adds the Wikipedia knowledge graph over the
+Marketing corpus (:mod:`my_rag.graph`; both imported directly, like the other
+optional modules).
 
 The vector-store and index symbols are resolved lazily (PEP 562) so that
 ``import my_rag`` does not pull in Deep Lake or LlamaIndex unless actually used.
@@ -60,6 +62,25 @@ from .embeddings import (
     OpenAICompatibleEmbedding,
     cosine_similarity,
     create_embedding_function,
+)
+from .graph import (
+    DEFAULT_GRAPH_STORE,
+    DEFAULT_MARKETING_OUTPUT,
+    MARKETING_URLS_URL,
+    QUESTIONS,
+    GraphAnswer,
+    GraphIndex,
+    GraphRAG,
+    GraphStats,
+    build_networkx_graph,
+    collect_marketing,
+    cosine_metrics,
+    crawl_summaries,
+    draw_networkx_graph,
+    judge,
+    parse_urls,
+    rerank,
+    write_report,
 )
 from .llm import LLM, create_llm, register_provider
 from .multimodal import (
@@ -112,6 +133,23 @@ __all__ = [
     "DEFAULT_INDEX_STORE",
     "DEFAULT_IMAGE_DIR",
     "DEFAULT_EXPERT_FEEDBACK",
+    "DEFAULT_GRAPH_STORE",
+    "DEFAULT_MARKETING_OUTPUT",
+    "MARKETING_URLS_URL",
+    "QUESTIONS",
+    "GraphAnswer",
+    "GraphIndex",
+    "GraphRAG",
+    "GraphStats",
+    "build_networkx_graph",
+    "collect_marketing",
+    "cosine_metrics",
+    "crawl_summaries",
+    "draw_networkx_graph",
+    "judge",
+    "parse_urls",
+    "rerank",
+    "write_report",
     "LLM",
     "create_llm",
     "register_provider",

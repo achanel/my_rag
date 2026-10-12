@@ -51,10 +51,21 @@ Chapter 6 scales the index onto Qdrant over the bank-customer-churn dataset
     python -m my_rag --collect --corpus churn
     python -m my_rag --build-index
     python -m my_rag --rag qdrant "Customer Henderson CreditScore 599 ..."
+
+Chapter 7 builds a knowledge graph over the Marketing citation list and indexes
+it with LlamaIndex (Ollama only; the graph build is one LLM call per chunk, so
+``--limit`` picks how many pages it walks)::
+
+    python -m my_rag --collect --corpus marketing --limit 15
+    python -m my_rag --graph --visualize
+    python -m my_rag --rag graph --show-context "What are the 4Ps?"
+    python -m my_rag --rag graph --metrics "What are the 4Ps?"
+    python -m my_rag --visualize --pairs        # the book's Tree_2_Graph example
 """
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import textwrap
 from pathlib import Path
@@ -66,6 +77,9 @@ from .collection import DRONE_URLS, WIKI_URLS, collect
 from .config import (
     CHUNK_SIZE,
     DEFAULT_CHURN_CSV,
+    DEFAULT_GRAPH_HTML_DIR,
+    DEFAULT_GRAPH_LIMIT,
+    DEFAULT_GRAPH_STORE,
     DEFAULT_IMAGE_DIR,
     DEFAULT_INDEX_STORE,
     DEFAULT_QDRANT_COLLECTION,
@@ -75,6 +89,21 @@ from .config import (
 )
 from .corpus import DB_RECORDS
 from .embeddings import create_embedding_function
+from .graph import (
+    DEFAULT_MARKETING_OUTPUT,
+    DEFAULT_TOP_K as DEFAULT_GRAPH_TOP_K,
+    METRIC_RECORDS,
+    GraphIndex,
+    GraphRAG,
+    TOY_FRIENDS,
+    TOY_LAYOUTS,
+    TOY_PAIRS,
+    build_networkx_graph,
+    collect_marketing,
+    draw_networkx_graph,
+    load_documents as load_graph_documents,
+    write_report,
+)
 from .llm import LLM, available_providers, create_llm
 from .multimodal import DEFAULT_IMAGE_LIMIT, IMAGE_TOP_K, TEXT_TOP_K
 from .pipeline import RAGPipeline
@@ -91,6 +120,15 @@ DEFAULT_MULTIMODAL_QUERY = "How do drones identify a truck?"
 
 #: The book's chapter 5 question, adapted by the panel's ranking.
 DEFAULT_ADAPTIVE_QUERY = "What is an LLM?"
+
+#: The book's chapter 7 question over the Marketing knowledge graph.
+DEFAULT_GRAPH_QUERY = "What is the primary goal of marketing for the consumer market?"
+
+#: Where chapter 7's metrics run writes its numbers (git-ignored).
+DEFAULT_GRAPH_REPORT = Path("data/processed/graph/metrics.json")
+
+#: Where the chapter 7 pyvis graph is written by default.
+DEFAULT_GRAPH_HTML = "Knowledge_graph"
 
 
 def format_response(response: str, width: int = 80) -> str:
@@ -136,7 +174,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=f"question to send (default: {DEFAULT_QUERY!r}; "
         f"for --rag index: {DEFAULT_INDEX_QUERY!r}; for --rag multimodal: {DEFAULT_MULTIMODAL_QUERY!r}; "
-        f"for --rag adaptive: {DEFAULT_ADAPTIVE_QUERY!r}; for --rag qdrant: a customer record)",
+        f"for --rag adaptive: {DEFAULT_ADAPTIVE_QUERY!r}; for --rag qdrant: a customer record; "
+        f"for --rag graph: {DEFAULT_GRAPH_QUERY!r})",
     )
     parser.add_argument("--provider", help="LLM provider (env MY_RAG_PROVIDER; default: ollama)")
     parser.add_argument("--model", help="model name (env MY_RAG_MODEL; default: provider default)")
@@ -164,13 +203,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--rag",
         choices=[
             "none", "naive", "advanced", "modular", "embeddings", "index", "multimodal",
-            "adaptive", "qdrant",
+            "adaptive", "qdrant", "graph",
         ],
         default="none",
         help="RAG variant: none (plain generation), naive (keyword), advanced (TF-IDF vector/index), "
         "modular (selectable method), embeddings (vector store search), index (LlamaIndex index, ch. 3), "
         "multimodal (text + drone images + vision model, ch. 4), adaptive (ranking-driven RAG with "
-        "human feedback, ch. 5), qdrant (Qdrant collection over bank-churn records, ch. 6)",
+        "human feedback, ch. 5), qdrant (Qdrant collection over bank-churn records, ch. 6), "
+        "graph (LlamaIndex knowledge graph, ch. 7)",
     )
     parser.add_argument(
         "--method",
@@ -187,8 +227,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--top-k",
         type=int,
-        default=3,
-        help="similarity_top_k for --rag index (default: 3, the book's value)",
+        default=None,
+        help="similarity_top_k for --rag index|graph (default: 3, the book's value)",
     )
     parser.add_argument(
         "--show-context",
@@ -198,19 +238,21 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--collect",
         action="store_true",
-        help="fetch a corpus and exit (chapter 2 Wikipedia, chapter 3 drone, or chapter 4 VisDrone images)",
+        help="fetch a corpus and exit (chapter 2 Wikipedia, chapter 3 drone, chapter 4 VisDrone images, "
+        "chapter 7 marketing)",
     )
     parser.add_argument(
         "--corpus",
-        choices=["wiki", "drone", "visdrone", "churn"],
+        choices=["wiki", "drone", "visdrone", "churn", "marketing"],
         default="wiki",
         help="corpus for --collect: wiki (ch. 2), drone (ch. 3 text), visdrone (ch. 4 images), "
-        "or churn (ch. 6 bank-customer dataset; default: wiki)",
+        "churn (ch. 6 bank-customer dataset), or marketing (ch. 7 knowledge-graph corpus; default: wiki)",
     )
     parser.add_argument(
         "--output",
-        help=f"path for --collect / --embed / --rag index / --rag multimodal / --churn-report / --build-index "
-        f"(default: {DEFAULT_CORPUS}; drone: {DEFAULT_DRONE_OUTPUT}; churn: {DEFAULT_CHURN_CSV})",
+        help=f"path for --collect / --embed / --rag index / --rag multimodal / --churn-report / "
+        f"--build-index / --graph (default: {DEFAULT_CORPUS}; drone: {DEFAULT_DRONE_OUTPUT}; "
+        f"churn: {DEFAULT_CHURN_CSV}; marketing: {DEFAULT_MARKETING_OUTPUT})",
     )
     parser.add_argument(
         "--image-dir",
@@ -220,8 +262,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--limit",
         type=int,
-        default=DEFAULT_IMAGE_LIMIT,
-        help=f"number of VisDrone samples for --collect --corpus visdrone (default: {DEFAULT_IMAGE_LIMIT})",
+        default=None,
+        help=f"number of samples/pages: VisDrone images for --collect --corpus visdrone "
+        f"(default: {DEFAULT_IMAGE_LIMIT}), Marketing pages for --collect --corpus marketing and "
+        f"--graph (default: {DEFAULT_GRAPH_LIMIT})",
     )
     parser.add_argument(
         "--vision-model",
@@ -290,7 +334,69 @@ def build_parser() -> argparse.ArgumentParser:
         "--chunk-size",
         type=int,
         default=CHUNK_SIZE,
-        help=f"character chunk size for --embed (default: {CHUNK_SIZE})",
+        help=f"character chunk size for --embed / --graph (default: {CHUNK_SIZE})",
+    )
+
+    graph = parser.add_argument_group("chapter 7 — knowledge graph (Marketing + LlamaIndex)")
+    graph.add_argument(
+        "--graph",
+        action="store_true",
+        help="build the knowledge graph from the corpus, persist it, and exit (ch. 7, part 2)",
+    )
+    graph.add_argument(
+        "--graph-store",
+        help=f"folder the knowledge graph is persisted to / loaded from "
+        f"(env MY_RAG_GRAPH_STORE; default: {DEFAULT_GRAPH_STORE})",
+    )
+    graph.add_argument(
+        "--visualize",
+        action="store_true",
+        help="write the graph as a pyvis HTML file (with --pairs: the book's Tree_2_Graph example)",
+    )
+    graph.add_argument(
+        "--pairs",
+        action="store_true",
+        help="draw the book's Tree_2_Graph toy graph (pairs + friend/dashed edges) instead of the "
+        "knowledge graph",
+    )
+    graph.add_argument(
+        "--layout",
+        choices=list(TOY_LAYOUTS),
+        default="spring",
+        help="networkx layout for --visualize --pairs (default: spring)",
+    )
+    graph.add_argument(
+        "--graph-html",
+        help=f"output HTML/SVG path for --visualize (default: "
+        f"{DEFAULT_GRAPH_HTML_DIR}/{DEFAULT_GRAPH_HTML}.html; --pairs: tree_<layout>.svg)",
+    )
+    graph.add_argument(
+        "--max-nodes",
+        type=int,
+        default=150,
+        help="nodes drawn in the pyvis graph, largest component first (default: 150; 0 = all)",
+    )
+    graph.add_argument(
+        "--max-triplets",
+        type=int,
+        default=2,
+        help="max_triplets_per_chunk for the graph index (default: 2, the book's value)",
+    )
+    graph.add_argument(
+        "--metrics",
+        action="store_true",
+        help="run the book's metrics sample over the graph index and write the report (ch. 7, part 3)",
+    )
+    graph.add_argument(
+        "--report",
+        help=f"where --metrics writes its JSON report (default: {DEFAULT_GRAPH_REPORT})",
+    )
+    graph.add_argument(
+        "--crawl",
+        type=int,
+        metavar="N",
+        help="collect the corpus by crawling N of the Marketing page's links instead of the "
+        "book's URL list (needs the network, no index)",
     )
     parser.add_argument("--list-providers", action="store_true", help="list registered providers and exit")
     return parser
@@ -352,8 +458,9 @@ def embed_corpus(corpus: Path, store_path: Path, chunk_size: int, settings: Sett
 
 def run_index_query(args, settings: Settings) -> int:
     """Build a LlamaIndex index over the corpus and answer ``args.query`` (ch. 3)."""
-    from .indexing import IndexQueryEngine, load_documents  # lazy: LlamaIndex is heavy
+    from .indexing import DEFAULT_TOP_K, IndexQueryEngine, load_documents  # lazy: LlamaIndex
 
+    args.top_k = args.top_k or DEFAULT_TOP_K
     corpus = Path(args.output) if args.output else DEFAULT_DRONE_OUTPUT
     store_path = Path(args.vector_store) if args.vector_store else DEFAULT_INDEX_STORE
     print(f"rag: index ({args.index_type}, top_k={args.top_k})", file=sys.stderr)
@@ -546,8 +653,9 @@ def build_vector_index(args, settings: Settings) -> int:
 
 def run_qdrant_query(args, settings: Settings) -> int:
     """Draft a retention email from the record's nearest Qdrant neighbours (ch. 6)."""
-    from .scaling import DEFAULT_QUERY_RECORD, CustomerRAG, open_qdrant_index
+    from .scaling import DEFAULT_QUERY_RECORD, DEFAULT_TOP_K, CustomerRAG, open_qdrant_index
 
+    args.top_k = args.top_k or DEFAULT_TOP_K
     record = args.query or DEFAULT_QUERY_RECORD
     index = None
     try:
@@ -618,6 +726,185 @@ def run_adaptive_query(args, settings: Settings) -> int:
     return 0
 
 
+def collect_marketing_corpus(args, limit: int) -> int:
+    """Fetch the chapter 7 Marketing corpus, from the book's URL list or by crawling (ch. 7)."""
+    from .graph import DEFAULT_URLS_OUTPUT, crawl_summaries
+
+    output = Path(args.output) if args.output else DEFAULT_MARKETING_OUTPUT
+    if args.crawl:
+        print(f"crawling {args.crawl} links from the Marketing page ...", file=sys.stderr)
+        try:
+            articles = crawl_summaries("Marketing", args.crawl)
+        except Exception as exc:  # no network, unknown page, ...
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text("\n\n".join(article.to_markdown() for article in articles) + "\n", encoding="utf-8")
+        print(f"wrote {output} ({len(articles)} pages via the Wikipedia API)", file=sys.stderr)
+        return 0
+
+    print(f"collecting the first {limit} Marketing pages -> {output} ...", file=sys.stderr)
+    try:
+        path, collected, failed = collect_marketing(
+            output, limit=limit, progress=lambda line: print(line, file=sys.stderr)
+        )
+    except Exception as exc:  # no network to GitHub, unwritable path, ...
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"wrote {path} ({len(collected)}/{limit} pages, {len(failed)} skipped)", file=sys.stderr)
+    return 0
+
+
+def _graph_index(args, settings: Settings) -> GraphIndex:
+    """Chapter 7's graph index, pointed at ``--graph-store``/``--output``."""
+    return GraphIndex(
+        settings,
+        store_path=Path(args.graph_store) if args.graph_store else settings.graph_store,
+        max_triplets_per_chunk=args.max_triplets,
+        chunk_size=args.chunk_size,
+    )
+
+
+def build_knowledge_graph(args, settings: Settings) -> int:
+    """Build the chapter 7 knowledge graph from the corpus and persist it (ch. 7, part 2)."""
+    corpus = Path(args.output) if args.output else DEFAULT_MARKETING_OUTPUT
+    limit = args.limit or settings.graph_limit
+    index = _graph_index(args, settings)
+    print(
+        f"graph: {corpus} (first {limit} pages, max_triplets_per_chunk={args.max_triplets}) "
+        f"-> {index.store_path}",
+        file=sys.stderr,
+    )
+    try:
+        documents = load_graph_documents(corpus, limit=limit)
+        print(f"extracting triplets from {len(documents)} documents ...", file=sys.stderr)
+        build = index.build(
+            documents,
+            progress=lambda done, total: print(f"  chunk {done}/{total}", file=sys.stderr),
+        )
+    except Exception as exc:  # missing corpus, Ollama unreachable, ...
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(
+        f"built {build.stats} from {build.chunks} chunks in {build.elapsed:.1f}s; "
+        f"wrote {index.store_path}",
+        file=sys.stderr,
+    )
+    return 0
+
+
+def run_graph_query(args, settings: Settings) -> int:
+    """Answer ``args.query`` from the knowledge graph, re-ranked (ch. 7, part 3)."""
+    index = _graph_index(args, settings)
+    top_k = args.top_k or DEFAULT_GRAPH_TOP_K
+    print(f"rag: graph (top_k={top_k}, store: {index.store_path})", file=sys.stderr)
+    try:
+        if not index.exists:
+            _build_graph_inline(index, args, settings)
+        if args.metrics:
+            return _graph_metrics(args, settings, index)
+        answer = GraphRAG(index, top_k=top_k).answer(args.query)
+    except Exception as exc:  # missing graph/corpus, Ollama unreachable, ...
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.show_context:
+        print("Retrieved context:")
+        print("---------------")
+        for position, source in enumerate(answer.sources, start=1):
+            print(f"[{position}] graph score {source.score}\n{textwrap.fill(source.text, width=args.width)}\n")
+        print("---------------")
+        if answer.ranking.best_rank is not None:
+            print(
+                f"Re-ranking (cosine vs the question): best rank {answer.ranking.best_rank}, "
+                f"score {answer.ranking.best_score:.3f}"
+            )
+            print("---------------")
+    print(format_response(answer.response, width=args.width))
+    print()
+    print(
+        f"Triplets: {answer.triplets} | Sources: {len(answer.sources)} | "
+        f"Cosine Similarity Score: {answer.similarity:.3f} | Response Time: {answer.elapsed:.2f} seconds"
+    )
+    return 0
+
+
+def _build_graph_inline(index: GraphIndex, args, settings: Settings) -> None:
+    """Build and persist the graph when a graph query finds no store yet."""
+    corpus = Path(args.output) if args.output else DEFAULT_MARKETING_OUTPUT
+    print(f"no graph at {index.store_path}; building from {corpus} ...", file=sys.stderr)
+    build = index.build(
+        load_graph_documents(corpus, limit=args.limit or settings.graph_limit),
+        progress=lambda done, total: print(f"  chunk {done}/{total}", file=sys.stderr),
+    )
+    print(f"built {build.stats} from {build.chunks} chunks in {build.elapsed:.1f}s", file=sys.stderr)
+
+
+def _graph_metrics(args, settings: Settings, index: GraphIndex) -> int:
+    """Run the book's metrics sample and write the JSON report (ch. 7, part 3)."""
+    report = Path(args.report) if args.report else DEFAULT_GRAPH_REPORT
+    try:
+        answers, metrics, comparison = GraphRAG(index, top_k=args.top_k or DEFAULT_GRAPH_TOP_K).evaluate(
+            limit=METRIC_RECORDS,
+            progress=lambda done, total, question: print(
+                f"  [{done}/{total}] {question}", file=sys.stderr
+            ),
+        )
+        path = write_report(report, answers=answers, metrics=metrics, comparison=comparison)
+    except Exception as exc:  # empty graph, Ollama unreachable, ...
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"\nMetrics over {len(answers)} questions ({comparison.source} human side):")
+    for line in metrics.lines():
+        print(f"  {line}")
+    print(
+        f"  Mean cosine {comparison.mean_cosine:.3f} vs mean human {comparison.mean_human:.3f} "
+        f"(within 0.10: {comparison.agreement:.0%})"
+    )
+    print(f"wrote {path}", file=sys.stderr)
+    return 0
+
+
+def visualize_graph(args) -> int:
+    """Draw the book's graphs: the Tree_2_Graph example, or the knowledge graph (ch. 7)."""
+    if args.pairs:
+        output = Path(args.graph_html) if args.graph_html else Path(f"data/processed/graph/tree_{args.layout}.svg")
+        graph, root = build_networkx_graph(TOY_PAIRS)
+        try:
+            path = draw_networkx_graph(
+                graph,
+                output=output,
+                layout=args.layout,
+                friends=TOY_FRIENDS,
+                title=f"Visual Representation of the Tree ({args.layout} layout)",
+            )
+        except Exception as exc:  # bad layout, unwritable path, ...
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        for first, second in TOY_PAIRS:
+            print(f"Pair ({first}, {second}): {'friend' if (first, second) in TOY_FRIENDS else 'not friend'}")
+        print(f"root: {root} | wrote {path}")
+        return 0
+
+    index = _graph_index(args, _settings_for_visualize(args))
+    output = Path(args.graph_html) if args.graph_html else Path(DEFAULT_GRAPH_HTML_DIR) / f"{DEFAULT_GRAPH_HTML}.html"
+    print(f"visualizing the knowledge graph at {index.store_path} -> {output}", file=sys.stderr)
+    try:
+        path = index.visualize(
+            output, max_nodes=args.max_nodes, progress=lambda line: print(line, file=sys.stderr)
+        )
+    except Exception as exc:  # missing graph, unwritable path, ...
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"wrote {path}")
+    return 0
+
+
+def _settings_for_visualize(args) -> Settings:
+    """Settings for a drawing: no model needed, so nothing is contacted."""
+    return Settings.from_env(provider=args.provider, model=args.model, base_url=args.base_url)
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -630,8 +917,17 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.query = DEFAULT_ADAPTIVE_QUERY
         elif args.rag == "qdrant":
             args.query = DEFAULT_QUERY_RECORD
+        elif args.rag == "graph":
+            args.query = DEFAULT_GRAPH_QUERY
         else:
             args.query = DEFAULT_QUERY
+
+    if args.pairs and not args.visualize:
+        args.visualize = True
+
+    if args.visualize:
+        load_env()
+        return visualize_graph(args)
 
     if args.list_providers:
         print("\n".join(available_providers()))
@@ -639,11 +935,15 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     if args.collect:
         if args.corpus == "visdrone":
-            return collect_images(Path(args.image_dir) if args.image_dir else DEFAULT_IMAGE_DIR, args.limit)
+            limit = args.limit or DEFAULT_IMAGE_LIMIT
+            return collect_images(Path(args.image_dir) if args.image_dir else DEFAULT_IMAGE_DIR, limit)
         if args.corpus == "drone":
             return collect_corpus(Path(args.output) if args.output else DEFAULT_DRONE_OUTPUT, DRONE_URLS)
         if args.corpus == "churn":
             return collect_churn_dataset(Path(args.output) if args.output else DEFAULT_CHURN_CSV)
+        if args.corpus == "marketing":
+            limit = args.limit or int(os.environ.get("MY_RAG_GRAPH_LIMIT") or DEFAULT_GRAPH_LIMIT)
+            return collect_marketing_corpus(args, limit)
         return collect_corpus(Path(args.output) if args.output else DEFAULT_CORPUS, WIKI_URLS)
 
     if args.churn_report:
@@ -666,6 +966,12 @@ def main(argv: Optional[list[str]] = None) -> int:
         store_path = Path(args.vector_store) if args.vector_store else DEFAULT_VECTOR_STORE
         corpus = Path(args.output) if args.output else DEFAULT_CORPUS
         return embed_corpus(corpus, store_path, args.chunk_size, settings)
+
+    if args.graph:
+        return build_knowledge_graph(args, settings)
+
+    if args.rag == "graph":
+        return run_graph_query(args, settings)
 
     if args.rag == "index":
         return run_index_query(args, settings)
