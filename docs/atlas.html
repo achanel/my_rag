@@ -294,9 +294,9 @@ html { scroll-behavior: smooth; }
 <div class="wrap">
 
 <header class="masthead">
-  <p class="eyebrow">my_rag · конспект глав 1–6 «RAG-Driven Generative AI» (Rothman)</p>
+  <p class="eyebrow">my_rag · конспект глав 1–7 «RAG-Driven Generative AI» (Rothman)</p>
   <h1>Атлас <span>my_rag</span></h1>
-  <p class="lead">Шесть глав собирают один и тот же пайплайн: <b>найти</b> контекст, <b>склеить</b> его с вопросом, <b>сгенерировать</b> ответ. От главы к главе меняется только то, что ищем и как. Цвет во всех схемах значит одно и то же:</p>
+  <p class="lead">Семь глав собирают один и тот же пайплайн: <b>найти</b> контекст, <b>склеить</b> его с вопросом, <b>сгенерировать</b> ответ. От главы к главе меняется только то, что ищем и как. Цвет во всех схемах значит одно и то же:</p>
   <div class="legend" aria-label="Цвета стадий">
     <span class="chip" data-stage="ingest"><span class="dot"></span><b>Данные</b> сбор, чанки, эмбеддинги</span>
     <span class="chip" data-stage="retrieve"><span class="dot"></span><b>Retrieve</b> поиск контекста</span>
@@ -314,6 +314,7 @@ html { scroll-behavior: smooth; }
     <li><a href="#ch4"><b>4</b> Мультимодальный</a></li>
     <li><a href="#ch5"><b>5</b> Адаптивный</a></li>
     <li><a href="#ch6"><b>6</b> Qdrant</a></li>
+    <li><a href="#ch7"><b>7</b> Граф знаний</a></li>
     <li><a href="#cheat"><b>⌘</b> Шпаргалка</a></li>
   </ol>
 </nav>
@@ -354,7 +355,7 @@ html { scroll-behavior: smooth; }
     </div>
 
     <div class="block">
-      <div class="block-title"><h3>Один протокол, шесть реализаций</h3><span class="eyebrow">Retriever</span></div>
+      <div class="block-title"><h3>Один протокол, семь реализаций</h3><span class="eyebrow">Retriever</span></div>
       <div class="formula">class Retriever(Protocol):
     def retrieve(self, query, *, top_k=1) -&gt; list[str]</div>
       <p class="note" style="margin-top:12px">Любой объект с таким методом подходит в <code>RAGPipeline</code>. Это и есть точка расширения, на которой держатся все главы:</p>
@@ -367,6 +368,7 @@ html { scroll-behavior: smooth; }
           <tr><td>4</td><td><code>EmbeddingIndex</code> (в памяти)</td></tr>
           <tr><td>5</td><td>нет — <code>RAGPipeline</code> получает вход, выбранный рейтингом</td></tr>
           <tr><td>6</td><td>коллекция Qdrant, обёрнутая <code>CustomerRAG</code></td></tr>
+          <tr><td>7</td><td>knowledge graph LlamaIndex, обёрнутый <code>GraphRAG</code> (отвечает <code>GraphIndex</code>)</td></tr>
         </table>
       </div>
     </div>
@@ -376,21 +378,22 @@ html { scroll-behavior: smooth; }
     <div class="block-title"><h3>Как рос пакет</h3><span class="eyebrow">модуль × глава</span></div>
     <div class="table-wrap">
       <table class="matrix">
-        <thead><tr><th>Модуль</th><th class="c">1</th><th class="c">2</th><th class="c">3</th><th class="c">4</th><th class="c">5</th><th class="c">6</th><th>Главное внутри</th></tr></thead>
+        <thead><tr><th>Модуль</th><th class="c">1</th><th class="c">2</th><th class="c">3</th><th class="c">4</th><th class="c">5</th><th class="c">6</th><th class="c">7</th><th>Главное внутри</th></tr></thead>
         <tbody>
-          <tr><td><code>config.py</code></td><td class="c mark-new" title="создан">●</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td><code>Settings.from_env</code>: флаг CLI → env → дефолт провайдера; путь, коллекция и размерность Qdrant</td></tr>
-          <tr><td><code>llm.py</code></td><td class="c mark-new">●</td><td class="c mark-use" title="используется">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c mark-use">○</td><td><code>LLM</code> (ABC), <code>@register_provider</code>, OpenAI-совместимый клиент</td></tr>
-          <tr><td><code>pipeline.py</code></td><td class="c mark-new">●</td><td class="c mark-use">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c"></td><td><code>RAGPipeline</code>, протокол <code>Retriever</code></td></tr>
-          <tr><td><code>corpus.py</code></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td>28 абзацев книги про RAG (<code>DB_RECORDS</code>)</td></tr>
-          <tr><td><code>retrieval.py</code></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td>Keyword / TF-IDF Vector / TF-IDF Index / Modular; в гл. 5 <code>TfidfIndex</code> даёт косинус оценки</td></tr>
-          <tr><td><code>cli.py</code></td><td class="c mark-new">●</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td>каждая глава добавляет флаги: <code>--rag</code>, <code>--collect</code>, <code>--ranking</code>, <code>--build-index</code>…</td></tr>
-          <tr><td><code>collection.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c mark-ext">◐</td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c"></td><td>скачивание и чистка страниц → один Markdown-файл; в гл. 5 <code>fetch_article</code></td></tr>
-          <tr><td><code>embeddings.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-ext">◐</td><td class="c"></td><td class="c mark-use">○</td><td>эмбеддинги через <code>/v1/embeddings</code>; в гл. 4 + <code>EmbeddingIndex</code>, в гл. 6 их пишет Qdrant</td></tr>
-          <tr><td><code>vectorstore.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td class="c"></td><td><code>chunk_text</code>, Deep Lake <code>VectorStore</code></td></tr>
-          <tr><td><code>indexing.py</code></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td>4 индекса LlamaIndex, обход бага numpy 2</td></tr>
-          <tr><td><code>multimodal.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td>текст + картинки + vision-модель, оценки</td></tr>
-          <tr><td><code>adaptive.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td>рейтинг → стратегия, оценщик, журнал человеческих оценок</td></tr>
-          <tr><td><code>scaling.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td>датасет churn, NumPy KMeans, эмбеддинги → Qdrant, письмо клиенту</td></tr>
+          <tr><td><code>config.py</code></td><td class="c mark-new" title="создан">●</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td><code>Settings.from_env</code>: флаг CLI → env → дефолт провайдера; путь и коллекция Qdrant; в гл. 7 — <code>graph_store</code> и <code>graph_limit</code></td></tr>
+          <tr><td><code>llm.py</code></td><td class="c mark-new">●</td><td class="c mark-use" title="используется">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c mark-use">○</td><td><code>LLM</code> (ABC), <code>@register_provider</code>, OpenAI-совместимый клиент</td></tr>
+          <tr><td><code>pipeline.py</code></td><td class="c mark-new">●</td><td class="c mark-use">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c"></td><td class="c"></td><td><code>RAGPipeline</code>, протокол <code>Retriever</code></td></tr>
+          <tr><td><code>corpus.py</code></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td>28 абзацев книги про RAG (<code>DB_RECORDS</code>)</td></tr>
+          <tr><td><code>retrieval.py</code></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td class="c mark-use">○</td><td>Keyword / TF-IDF Vector / TF-IDF Index / Modular; в гл. 5 и 7 <code>TfidfIndex</code> даёт косинус оценки</td></tr>
+          <tr><td><code>cli.py</code></td><td class="c mark-new">●</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td>каждая глава добавляет флаги: <code>--rag</code>, <code>--collect</code>, <code>--ranking</code>, <code>--build-index</code>, <code>--graph</code>…</td></tr>
+          <tr><td><code>collection.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c mark-ext">◐</td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c"></td><td class="c mark-use">○</td><td>скачивание и чистка страниц → один Markdown-файл; в гл. 5 / 7 <code>fetch_article</code> / <code>clean_text</code></td></tr>
+          <tr><td><code>embeddings.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-ext">◐</td><td class="c"></td><td class="c mark-use">○</td><td class="c mark-use">○</td><td>эмбеддинги через <code>/v1/embeddings</code>; в гл. 4 + <code>EmbeddingIndex</code>, в гл. 6 их пишет Qdrant, в гл. 7 — re-ranking вопросов</td></tr>
+          <tr><td><code>vectorstore.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td class="c"></td><td class="c"></td><td><code>chunk_text</code>, Deep Lake <code>VectorStore</code></td></tr>
+          <tr><td><code>indexing.py</code></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-use">○</td><td>4 индекса LlamaIndex, обход бага numpy 2; в гл. 7 — <code>KnowledgeGraphIndex</code> и loader</td></tr>
+          <tr><td><code>multimodal.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td>текст + картинки + vision-модель, оценки</td></tr>
+          <tr><td><code>adaptive.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-use">○</td><td>рейтинг → стратегия, оценщик, журнал человеческих оценок; в гл. 7 <code>tfidf_similarity</code> даёт метрику</td></tr>
+          <tr><td><code>scaling.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td>датасет churn, NumPy KMeans, эмбеддинги → Qdrant, письмо клиенту</td></tr>
+          <tr><td><code>graph.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td>Wikipedia-корпус Marketing, <code>KnowledgeGraphIndex</code> на LlamaIndex, pyvis, re-ranking и метрики</td></tr>
         </tbody>
       </table>
     </div>
@@ -944,6 +947,76 @@ mean = round(63 / 21, 2) = 3.0</div>
   </div>
 </section>
 
+<!-- ================= CHAPTER 7 ================= -->
+<section class="chapter" id="ch7">
+  <div class="station" aria-hidden="true">7</div>
+  <div class="chapter-head">
+    <p class="eyebrow">Глава 7 · Knowledge-Graph RAG</p>
+    <h2>Контекст стал графом: не чанки, а тройки «субъект — предикат — объект»</h2>
+    <p class="lead">LlamaIndex прогоняет каждый чанк корпуса Marketing из Wikipedia через LLM и достаёт из него тройки — они и есть узлы и рёбра графа. Запрос идёт не по похожести векторов, а обходом графа: ретривер возвращает узлы-источники, их переранжирует косинус вопроса, а сверху считается метрика качества. Книга строит граф на GPT-4o и хранит его в Deep Lake; здесь — локальный Ollama и папка на диске.</p>
+    <div class="refs"><code>graph.py</code><code>collection.py</code><code>indexing.py</code><code>embeddings.py</code><code>adaptive.py</code></div>
+  </div>
+
+  <div class="block">
+    <div class="block-title"><h3>Три пайплайна — три команды</h3><span class="eyebrow">--collect --corpus marketing → --graph → --rag graph</span></div>
+    <div class="stack">
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">Пайплайн 1 · данные <code>--collect --corpus marketing</code></p>
+        <div class="flow">
+          <div class="node" data-stage="ingest"><span class="k">данные</span><b>Marketing_urls.txt</b><small>готовый список 100 ссылок из репозитория книги</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="ingest"><span class="k">данные</span><b>collect_marketing()</b><small>первые <code>--limit</code> страниц → <code>marketing.md</code>, заголовок <code>#</code> на страницу</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="plain"><span class="k">альтернатива</span><b>--crawl N</b><small><code>crawl_summaries()</code> сам обходит ссылки через Wikipedia API</small></div>
+        </div>
+      </div>
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">Пайплайн 2 · граф <code>--graph</code></p>
+        <div class="flow">
+          <div class="node" data-stage="ingest"><span class="k">данные</span><b>SentenceSplitter</b><small>чанки по 1000 символов</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="augment"><span class="k">извлечение</span><b>KnowledgeGraphIndex</b><small>по LLM-вызову на чанк → тройки; в книге gpt-4o</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="ingest"><span class="k">хранилище</span><b>graph_store</b><small>локальная папка <code>data/processed/graph_store</code>, без токена</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="retrieve"><span class="k">отчёт</span><b>stats</b><small>тройки / узлы / рёбра / плотность; <code>--visualize</code> → pyvis HTML</small></div>
+        </div>
+      </div>
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">Пайплайн 3 · запрос и метрики <code>--rag graph</code></p>
+        <div class="flow">
+          <div class="node" data-stage="plain"><span class="k">вход</span><b>вопрос</b><small>«What are the 4Ps?»</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="retrieve"><span class="k">retrieve</span><b>graph query engine</b><small>top_k узлов-источников + их score</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="augment"><span class="k">re-rank</span><b>rerank()</b><small>косинус вопроса к каждому узлу → best_rank / best_score</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="generate"><span class="k">generate</span><b>ответ + метрики</b><small><code>--metrics</code>: 10 вопросов → mean/median/IQR в JSON</small></div>
+        </div>
+      </div>
+    </div>
+    <p class="note" style="margin-top:12px">Извлечение троек — это один вызов LLM на чанк, поэтому корпус из 100 страниц считается часами на локальной модели. <code>MY_RAG_GRAPH_LIMIT</code> (по умолчанию 15) держит запуск коротким, а <code>--limit</code> масштабирует до 100. Повторный <code>--rag graph</code> читает готовый <code>graph_store</code> и тройки заново не извлекает.</p>
+  </div>
+
+  <div class="grid-2">
+    <div class="callout">
+      <h4>Локальный store вместо Deep Lake hub</h4>
+      <p>Книга пишет и вектор-стор, и датасет в Activeloop (<code>hub://denis76/marketing01</code>, нужен <code>ACTIVELOOP_TOKEN</code>). Здесь граф персистится в <code>data/processed/graph_store</code>: ни токена, ни сети, а заодно можно переиспользовать индекс между запросами.</p>
+    </div>
+    <div class="callout">
+      <h4>Тот же MiniLM, но через numpy</h4>
+      <p>И ре-ранкинг, и метрики книги зовут <code>sentence-transformers</code> (<code>all-MiniLM-L6-v2</code>). Здесь ре-ранкинг спрашивает настроенную модель эмбеддингов (<code>all-minilm</code> через Ollama — та же семья), а метрика берёт <code>tfidf_similarity</code> главы 5 на numpy. Отдельная зависимость оценки не портируется.</p>
+    </div>
+  </div>
+
+  <div class="quiz">
+    <p class="eyebrow">Проверь себя</p>
+    <details><summary>Чем графовый поиск отличается от векторного?</summary><div>Векторный отдаёт чанки, ближайшие к запросу по косинусу. Графовый сначала извлёк из чанков тройки <code>(субъект, предикат, объект)</code>, затем на запрос обходит рёбра и возвращает связные узлы — «Marketing → includes → advertising». Это даёт ответы по связям между сущностями, а не по совпадению кусков текста.</div></details>
+    <details><summary>Почему по умолчанию всего 15 страниц?</summary><div><code>KnowledgeGraphIndex</code> делает по одному LLM-вызову на каждый чанк (извлечение троек). На локальном <code>qwen2.5:3b</code> весь список из 100 страниц — это часы. 15 страниц (~30 чанков, ≈2 минуты) держат <code>--graph</code> выполняемым; <code>--limit 100</code> берёт весь корпус.</div></details>
+    <details><summary>Зачем <code>--visualize --pairs</code> без модели?</summary><div>Это порт книги <code>Tree_2_Graph.ipynb</code>: игрушечное дерево из пар <code>(a, b), (b, e) …</code> с «дружескими» рёбрами (сплошными) и остальными (пунктиром). Он рисуется <code>networkx</code> + <code>matplotlib</code> из фиксированных констант, поэтому работает офлайн и без Ollama.</div></details>
+  </div>
+</section>
+
 </div><!-- /.line -->
 
 <!-- ================= CHEATSHEET ================= -->
@@ -968,6 +1041,9 @@ mean = round(63 / 21, 2) = 3.0</div>
         <tr><td>Индекс (гл. 6)</td><td>Pinecone serverless, <code>dimension=1536</code>, API-ключ</td><td>Qdrant: локальный движок или сервер, размерность = модель эмбеддингов (384 у <code>all-minilm</code>)</td></tr>
         <tr><td>Сегментация (гл. 6)</td><td>scikit-learn <code>KMeans</code> + <code>MinMaxScaler</code></td><td><code>kmeans</code> / <code>minmax_scale</code> на numpy</td></tr>
         <tr><td>Датасет (гл. 6)</td><td>скачивание с Kaggle</td><td>готовый <code>data1.csv</code> из репозитория книги</td></tr>
+        <tr><td>Граф (гл. 7)</td><td>Deep Lake <code>hub://denis76/marketing01</code>, <code>ACTIVELOOP_TOKEN</code></td><td>локальная папка <code>data/processed/graph_store</code>, без токена и сети</td></tr>
+        <tr><td>Ре-ранкинг (гл. 7)</td><td><code>sentence-transformers</code> <code>all-MiniLM-L6-v2</code></td><td>тот же <code>all-minilm</code> через Ollama + <code>TfidfIndex</code> на numpy для метрик</td></tr>
+        <tr><td>Корпус Marketing (гл. 7)</td><td>100 <code>.txt</code> в Colab + <code>SimpleDirectoryReader</code></td><td>один <code>marketing.md</code> из <code>--collect --corpus marketing</code></td></tr>
       </tbody>
     </table>
   </div>
@@ -1000,7 +1076,7 @@ mean = round(63 / 21, 2) = 3.0</div>
       <div class="cmds">
         <div class="cmd"><code>python -m my_rag --collect --corpus visdrone --limit 20</code><button class="copy" type="button">Копировать</button><span class="what">снимки + annotations.json → data/raw/drone_images</span></div>
         <div class="cmd"><code>python -m my_rag --rag multimodal --show-context "How do drones identify a truck?"</code><button class="copy" type="button">Копировать</button><span class="what">три модуля + оценки; рамки в data/processed/multimodal</span></div>
-        <div class="cmd"><code>python -m unittest discover -s tests</code><button class="copy" type="button">Копировать</button><span class="what">офлайн-тесты глав 4–5 (фейки Ollama, vision, сети)</span></div>
+        <div class="cmd"><code>python -m unittest discover -s tests</code><button class="copy" type="button">Копировать</button><span class="what">офлайн-тесты глав 4–7 (фейки Ollama, vision, сети, LlamaIndex)</span></div>
       </div>
     </div>
     <div class="stack">
@@ -1017,6 +1093,15 @@ mean = round(63 / 21, 2) = 3.0</div>
         <div class="cmd"><code>python -m my_rag --churn-report</code><button class="copy" type="button">Копировать</button><span class="what">EDA + выбор k + сегментация KMeans; офлайн</span></div>
         <div class="cmd"><code>python -m my_rag --build-index</code><button class="copy" type="button">Копировать</button><span class="what">эмбеддинги ×5 → Qdrant (локально, без ключа)</span></div>
         <div class="cmd"><code>python -m my_rag --rag qdrant --show-context --top-k 1</code><button class="copy" type="button">Копировать</button><span class="what">похожие клиенты → письмо-удержание</span></div>
+      </div>
+      <p class="eyebrow">Глава 7</p>
+      <div class="cmds">
+        <div class="cmd"><code>python -m my_rag --collect --corpus marketing --limit 15</code><button class="copy" type="button">Копировать</button><span class="what">корпус Marketing → data/raw/marketing.md (нужна сеть)</span></div>
+        <div class="cmd"><code>python -m my_rag --graph</code><button class="copy" type="button">Копировать</button><span class="what">тройки из чанков → data/processed/graph_store (нужен Ollama)</span></div>
+        <div class="cmd"><code>python -m my_rag --graph --visualize</code><button class="copy" type="button">Копировать</button><span class="what">+ pyvis HTML графа в data/processed/graph</span></div>
+        <div class="cmd"><code>python -m my_rag --rag graph --show-context "What are the 4Ps?"</code><button class="copy" type="button">Копировать</button><span class="what">ответ по графу + re-ranking узлов</span></div>
+        <div class="cmd"><code>python -m my_rag --rag graph --metrics</code><button class="copy" type="button">Копировать</button><span class="what">10 вопросов книги → data/processed/graph/metrics.json</span></div>
+        <div class="cmd"><code>python -m my_rag --visualize --pairs --layout spiral</code><button class="copy" type="button">Копировать</button><span class="what">Tree_2_Graph книги (офлайн, без модели)</span></div>
       </div>
     </div>
   </div>
@@ -1035,12 +1120,16 @@ mean = round(63 / 21, 2) = 3.0</div>
         <tr><td><code>data/processed/adaptive/expert_feedback.txt</code></td><td>гл. 5 <code>save_expert_feedback()</code></td><td>гл. 5 <code>load_expert_feedback()</code></td></tr>
         <tr><td><code>data/raw/churn/data1.csv</code></td><td>гл. 6 <code>--collect --corpus churn</code></td><td>гл. 6 <code>--churn-report</code> / <code>--build-index</code></td></tr>
         <tr><td><code>data/processed/qdrant</code> (коллекция <code>bank-index-50000</code>)</td><td>гл. 6 <code>--build-index</code></td><td>гл. 6 <code>--rag qdrant</code></td></tr>
+        <tr><td><code>data/raw/marketing.md</code> + <code>marketing_urls.txt</code></td><td>гл. 7 <code>--collect --corpus marketing</code></td><td>гл. 7 <code>--graph</code></td></tr>
+        <tr><td><code>data/processed/graph_store</code></td><td>гл. 7 <code>--graph</code></td><td>гл. 7 <code>--rag graph</code> / <code>--visualize</code></td></tr>
+        <tr><td><code>data/processed/graph/metrics.json</code></td><td>гл. 7 <code>--rag graph --metrics</code></td><td>ты: читать числа прогона</td></tr>
+        <tr><td><code>data/processed/graph/*.html</code> / <code>tree_*.svg</code></td><td>гл. 7 <code>--visualize</code> / <code>--pairs</code></td><td>ты: открыть в браузере</td></tr>
       </tbody>
     </table>
   </div>
 </section>
 
-<footer>Числа на странице взяты из твоего репозитория и локального Ollama на 6 октября 2026: размер хранилища, разрезы чанков, вектор вопроса, ранжирование снимков, длины входов главы 5 и статистика датасета churn для главы 6 (10 000 строк, KMeans k=2).</footer>
+<footer>Числа на странице взяты из твоего репозитория и локального Ollama на 6 октября 2026: размер хранилища, разрезы чанков, вектор вопроса, ранжирование снимков, длины входов главы 5 и статистика датасета churn для главы 6 (10 000 строк, KMeans k=2). Глава 7 описывает пайплайн knowledge graph без собственных замеров: число троек зависит от модели и <code>--limit</code> страниц.</footer>
 </div>
 
 <div class="tip" id="tip" hidden></div>

@@ -10,7 +10,8 @@ extensible Python package — the notebooks stay as references, not as the code.
 - **`notebooks/`** — one folder per chapter; each `README.md` maps the reference
   notebook to the code and lists every command.
 - **`docs/atlas.html`** — a self-contained infographic (pipelines, retrievers,
-  the chapter 5 feedback loop); open it in a browser.
+  the chapter 5 feedback loop, the chapter 7 knowledge graph); open it in a
+  browser.
 - **`tests/`** — offline unit tests with fakes for Ollama, the vision model and
   the web fetch.
 
@@ -162,7 +163,7 @@ Read from `.env`: `MY_RAG_PROVIDER`, `MY_RAG_MODEL`, `MY_RAG_EMBEDDING_MODEL`,
   chapter of the reference book; see each folder's `README.md`.
 - `tests/` — offline unit tests for chapters 4–7. Run with
   `python -m unittest discover -s tests`.
-- `docs/atlas.html` — infographic for chapters 1–6.
+- `docs/atlas.html` — infographic for chapters 1–7.
 - `commons/` — shared helpers (API keys, HTTP sessions) extracted as you go.
 - `data/raw`, `data/processed` — input and derived datasets (git-ignored).
 - `models/` — local model checkpoints / cache (git-ignored).
