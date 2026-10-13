@@ -11,7 +11,7 @@ extensible Python package — the notebooks stay as references, not as the code.
   notebook to the code and lists every command.
 - **`docs/atlas.html`** — a self-contained infographic (pipelines, retrievers,
   the chapter 5 feedback loop, the chapter 7 knowledge graph, the chapter 8
-  temporary Chroma session); open it in a browser.
+  temporary Chroma session, the chapter 9 fine-tuning flow); open it in a browser.
 - **`tests/`** — offline unit tests with fakes for Ollama, the vision model and
   the web fetch.
 
@@ -53,8 +53,9 @@ Caveats:
   vector collection's dimension.
 - LlamaIndex (ch. 3, 7): use `llama-index-llms-ollama` /
   `llama-index-embeddings-ollama`.
-- Fine-tuning (ch. 9) has no Ollama equivalent; on Apple Silicon use LoRA via
-  `mlx-lm` on a small model instead.
+- Fine-tuning (ch. 9) is the open-source, key-free path: `--provider mlx` runs a
+  local LoRA training via Apple MLX (`pip install "mlx-lm[train]"`, Apple silicon
+  only). The book's OpenAI hosted fine-tuning is closed/paid, so it is not used.
 - Sized for a 16 GB Apple Silicon machine: `qwen2.5:3b` (~2 GB) is the default;
   an 8B model needs ~6 GB and, next to PyCharm/browser, pushes a 16 GB machine
   into swap. See [ollama.com/library](https://ollama.com/library) for newer
@@ -83,8 +84,9 @@ for its commands, substitutions and cleanup — the table below is the map.
 | [6 · Scaling RAG with Qdrant](notebooks/06_scaling_qdrant/README.md) | Bank-churn dataset, NumPy KMeans segmentation, and a Qdrant-backed index (embed → duplicate → upsert) |
 | [7 · Knowledge-Graph RAG](notebooks/07_knowledge_graph/README.md) | Wikipedia Marketing corpus → a LlamaIndex knowledge graph (triplets), re-ranked querying + metrics |
 | [8 · Dynamic RAG](notebooks/08_dynamic_rag_chroma_hf/README.md) | SciQ corpus → a temporary (ephemeral) Chroma collection, retrieval-accuracy metrics, a local Hugging Face Llama provider |
+| [9 · Fine-tuning](notebooks/09_fine_tuning/README.md) | SciQ → a chat fine-tuning JSONL; open-source local Apple MLX LoRA training, then run + compare against base/retrieval |
 
-`notebooks/09…10` are placeholders for the remaining chapters.
+`notebooks/10_…` is a placeholder for the remaining chapter.
 
 ## How it works
 
@@ -109,6 +111,7 @@ Each chapter adds a new implementation of it, or a new backend:
 | 6 | a Qdrant collection (`my_rag.scaling.open_qdrant_index`) |
 | 7 | a LlamaIndex knowledge graph (`my_rag.graph.GraphIndex`) |
 | 8 | none — `DynamicRAG` over the retrieved SciQ support (`my_rag.dynamic`) |
+| 9 | none — `FineTunedRAG` runs the local MLX adapter; `compare()` adds the base model and the chapter 8 retrieval (`my_rag.finetune`) |
 
 ## Command line
 
@@ -132,13 +135,16 @@ python -m my_rag --no-stream --width 100 "..." # buffer + wrap instead of stream
 | `qdrant` | 6 | [link](notebooks/06_scaling_qdrant/README.md) |
 | `graph` | 7 | [link](notebooks/07_knowledge_graph/README.md) |
 | `dynamic` | 8 | [link](notebooks/08_dynamic_rag_chroma_hf/README.md) |
+| `finetune` | 9 | [link](notebooks/09_fine_tuning/README.md) |
 
 `--provider openai` runs everything against OpenAI instead of Ollama;
 `--provider hf` generates with a local Hugging Face `transformers` pipeline
 (chapter 8, default model the small ungated `Qwen/Qwen2.5-0.5B-Instruct`) while
 embeddings stay on Ollama. The book's `meta-llama/Llama-2-7b-chat-hf` is gated —
 pass it with `--model` once you have access; if it is inaccessible, generation
-falls back to the ungated default with a warning.
+falls back to the ungated default with a warning. `--provider mlx` (chapter 9)
+runs local fine-tuning and generation through Apple MLX / `mlx-lm` (Apple silicon
+only, no key).
 
 ## Configuration
 
@@ -152,15 +158,18 @@ Read from `.env`: `MY_RAG_PROVIDER`, `MY_RAG_MODEL`, `MY_RAG_EMBEDDING_MODEL`,
 (how many Marketing pages the graph is built from). Chapter 8 adds
 `MY_RAG_SCIENCE_QA` (the cached SciQ dataset), `MY_RAG_SCIENCE_LIMIT` (how many
 SciQ rows a session embeds) and `MY_RAG_CHROMA_COLLECTION` (the temporary Chroma
-collection name). The `hf` provider reads the Hugging Face token from
+collection name). Chapter 9 adds `MY_RAG_FINETUNE_DATA` (the chat fine-tuning
+JSONL) and `MY_RAG_FINETUNE_LIMIT` (how many SciQ rows become examples), and the
+local MLX path reads `MY_RAG_MLX_DATA`, `MY_RAG_MLX_ADAPTERS` and
+`MY_RAG_MLX_ITERS`. The `hf` provider reads the Hugging Face token from
 `~/.config/hugging_face/token` (override with `MY_RAG_HF_TOKEN_FILE`, or set
-`HF_TOKEN` / `HUGGING_FACE_HUB_TOKEN`).
+`HF_TOKEN` / `HUGGING_FACE_HUB_TOKEN`). Chapter 9 needs no key at all.
 
 ## Extending
 
 - **LLM providers** — subclass `my_rag.llm.LLM` and register a factory with
-  `@register_provider("name")`; `ollama` and `openai` already share the
-  OpenAI-compatible client.
+  `@register_provider("name")`; `ollama` and `openai` share the OpenAI-compatible
+  client, `hf` wraps `transformers` (ch. 8) and `mlx` wraps `mlx-lm` (ch. 9).
 - **Embeddings** — `create_embedding_function(settings)` builds the
   `embedding_function` the vector store calls.
 - **Retrieval** — `create_retriever(variant, records, method=…)`, or pass any
@@ -171,12 +180,12 @@ collection name). The `hf` provider reads the Hugging Face token from
 
 - `my_rag/` — the application package (`config`, `llm`, `embeddings`,
   `vectorstore`, `indexing`, `multimodal`, `adaptive`, `scaling`, `graph`,
-  `dynamic`, `collection`, `corpus`, `pipeline`, `retrieval`, `cli`).
+  `dynamic`, `finetune`, `collection`, `corpus`, `pipeline`, `retrieval`, `cli`).
 - `notebooks/01_rag_overview` … `notebooks/10_video_stock_production` — one per
   chapter of the reference book; see each folder's `README.md`.
-- `tests/` — offline unit tests for chapters 4–8. Run with
+- `tests/` — offline unit tests for chapters 4–9. Run with
   `python -m unittest discover -s tests`.
-- `docs/atlas.html` — infographic for chapters 1–8.
+- `docs/atlas.html` — infographic for chapters 1–9.
 - `commons/` — shared helpers (API keys, HTTP sessions) extracted as you go.
 - `data/raw`, `data/processed` — input and derived datasets (git-ignored).
 - `models/` — local model checkpoints / cache (git-ignored).
@@ -197,5 +206,9 @@ clustering commands work without it). Chapter 7 adds `networkx` and `matplotlib`
 Chapter 8 adds `chromadb` for the temporary Chroma collection; the SciQ dataset
 comes from the public Hugging Face datasets server over `requests`, and
 `--provider hf` reuses the already-present `transformers` for the book's local
-Hugging Face Llama. `huggingface-hub` is pinned to `<2` because `transformers`
-5.17 requires it — don't let an `hf` CLI self-update bump it.
+Hugging Face Llama. Chapter 9 uses no new dependency for its open-source local
+path beyond `mlx-lm` (optional, `pip install "mlx-lm[train]"`, Apple silicon only
+— not in `requirements.txt` so non-Apple installs keep working). The
+`deepspeed`/`bitsandbytes` stack stays unused. `huggingface-hub` is pinned to
+`<2` because `transformers` 5.17 requires it — don't let an `hf` CLI self-update
+bump it.

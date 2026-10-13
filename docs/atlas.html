@@ -316,6 +316,7 @@ html { scroll-behavior: smooth; }
     <li><a href="#ch6"><b>6</b> Qdrant</a></li>
     <li><a href="#ch7"><b>7</b> Граф знаний</a></li>
     <li><a href="#ch8"><b>8</b> Dynamic RAG</a></li>
+    <li><a href="#ch9"><b>9</b> Fine-tuning</a></li>
     <li><a href="#cheat"><b>⌘</b> Шпаргалка</a></li>
   </ol>
 </nav>
@@ -371,6 +372,7 @@ html { scroll-behavior: smooth; }
           <tr><td>6</td><td>коллекция Qdrant, обёрнутая <code>CustomerRAG</code></td></tr>
           <tr><td>7</td><td>knowledge graph LlamaIndex, обёрнутый <code>GraphRAG</code> (отвечает <code>GraphIndex</code>)</td></tr>
           <tr><td>8</td><td>нет — <code>DynamicRAG</code> поверх найденного саппорта SciQ (временная коллекция Chroma)</td></tr>
+          <tr><td>9</td><td>нет — <code>FineTunedRAG</code> запускает дообученную модель; <code>compare()</code> добавляет базовую модель и ретривер гл. 8</td></tr>
         </table>
       </div>
     </div>
@@ -380,23 +382,24 @@ html { scroll-behavior: smooth; }
     <div class="block-title"><h3>Как рос пакет</h3><span class="eyebrow">модуль × глава</span></div>
     <div class="table-wrap">
       <table class="matrix">
-        <thead><tr><th>Модуль</th><th class="c">1</th><th class="c">2</th><th class="c">3</th><th class="c">4</th><th class="c">5</th><th class="c">6</th><th class="c">7</th><th class="c">8</th><th>Главное внутри</th></tr></thead>
+        <thead><tr><th>Модуль</th><th class="c">1</th><th class="c">2</th><th class="c">3</th><th class="c">4</th><th class="c">5</th><th class="c">6</th><th class="c">7</th><th class="c">8</th><th class="c">9</th><th>Главное внутри</th></tr></thead>
         <tbody>
-          <tr><td><code>config.py</code></td><td class="c mark-new" title="создан">●</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td><code>Settings.from_env</code>: флаг CLI → env → дефолт провайдера; путь и коллекция Qdrant; в гл. 7 — <code>graph_store</code> и <code>graph_limit</code>; в гл. 8 — <code>science_qa</code>/<code>science_limit</code> и коллекция Chroma</td></tr>
-          <tr><td><code>llm.py</code></td><td class="c mark-new">●</td><td class="c mark-use" title="используется">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c mark-ext" title="расширен">◐</td><td><code>LLM</code> (ABC), <code>@register_provider</code>, OpenAI-совместимый клиент; в гл. 8 — провайдер <code>hf</code> (<code>HuggingFaceLLM</code> через <code>transformers.pipeline</code>)</td></tr>
-          <tr><td><code>pipeline.py</code></td><td class="c mark-new">●</td><td class="c mark-use">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c"></td><td class="c"></td><td class="c"></td><td><code>RAGPipeline</code>, протокол <code>Retriever</code></td></tr>
-          <tr><td><code>corpus.py</code></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td>28 абзацев книги про RAG (<code>DB_RECORDS</code>)</td></tr>
-          <tr><td><code>retrieval.py</code></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td>Keyword / TF-IDF Vector / TF-IDF Index / Modular; в гл. 5 и 7 <code>TfidfIndex</code> даёт косинус оценки</td></tr>
-          <tr><td><code>cli.py</code></td><td class="c mark-new">●</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext" title="расширен">◐</td><td>каждая глава добавляет флаги: <code>--rag</code>, <code>--collect</code>, <code>--ranking</code>, <code>--build-index</code>, <code>--graph</code>, <code>--rag dynamic</code>…</td></tr>
-          <tr><td><code>collection.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c mark-ext">◐</td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td>скачивание и чистка страниц → один Markdown-файл; в гл. 5 / 7 <code>fetch_article</code> / <code>clean_text</code></td></tr>
-          <tr><td><code>embeddings.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-ext">◐</td><td class="c"></td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c mark-use" title="используется">○</td><td>эмбеддинги через <code>/v1/embeddings</code>; в гл. 4 + <code>EmbeddingIndex</code>, в гл. 6 их пишет Qdrant, в гл. 7 — re-ranking вопросов, в гл. 8 — Chroma</td></tr>
-          <tr><td><code>vectorstore.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td><code>chunk_text</code>, Deep Lake <code>VectorStore</code></td></tr>
-          <tr><td><code>indexing.py</code></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td>4 индекса LlamaIndex, обход бага numpy 2; в гл. 7 — <code>KnowledgeGraphIndex</code> и loader</td></tr>
-          <tr><td><code>multimodal.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td>текст + картинки + vision-модель, оценки</td></tr>
-          <tr><td><code>adaptive.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td>рейтинг → стратегия, оценщик, журнал человеческих оценок; в гл. 7 <code>tfidf_similarity</code> даёт метрику</td></tr>
-          <tr><td><code>scaling.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td>датасет churn, NumPy KMeans, эмбеддинги → Qdrant, письмо клиенту</td></tr>
-          <tr><td><code>graph.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td>Wikipedia-корпус Marketing, <code>KnowledgeGraphIndex</code> на LlamaIndex, pyvis, re-ranking и метрики</td></tr>
-          <tr><td><code>dynamic.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new" title="создан">●</td><td>датасет SciQ, временная коллекция Chroma, точность ретривера (косинус &gt; 0.7), локальный Hugging Face Llama</td></tr>
+          <tr><td><code>config.py</code></td><td class="c mark-new" title="создан">●</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td><code>Settings.from_env</code>: флаг CLI → env → дефолт провайдера; путь и коллекция Qdrant; в гл. 7 — <code>graph_store</code> и <code>graph_limit</code>; в гл. 8 — <code>science_qa</code>/<code>science_limit</code> и коллекция Chroma; в гл. 9 — <code>finetune_data</code>/<code>finetune_limit</code> и MLX (<code>mlx_data</code>/<code>mlx_adapters</code>/<code>mlx_iters</code>)</td></tr>
+          <tr><td><code>llm.py</code></td><td class="c mark-new">●</td><td class="c mark-use" title="используется">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-use" title="используется">○</td><td><code>LLM</code> (ABC), <code>@register_provider</code>, OpenAI-совместимый клиент; в гл. 8 — провайдер <code>hf</code> (<code>HuggingFaceLLM</code> через <code>transformers.pipeline</code>); в гл. 9 — провайдер <code>mlx</code> (<code>MlxLLM</code> через <code>mlx-lm</code>)</td></tr>
+          <tr><td><code>pipeline.py</code></td><td class="c mark-new">●</td><td class="c mark-use">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td><code>RAGPipeline</code>, протокол <code>Retriever</code></td></tr>
+          <tr><td><code>corpus.py</code></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td>28 абзацев книги про RAG (<code>DB_RECORDS</code>)</td></tr>
+          <tr><td><code>retrieval.py</code></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td class="c"></td><td>Keyword / TF-IDF Vector / TF-IDF Index / Modular; в гл. 5 и 7 <code>TfidfIndex</code> даёт косинус оценки</td></tr>
+          <tr><td><code>cli.py</code></td><td class="c mark-new">●</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td>каждая глава добавляет флаги: <code>--rag</code>, <code>--collect</code>, <code>--ranking</code>, <code>--build-index</code>, <code>--graph</code>, <code>--rag dynamic</code>, <code>--fine-tune</code>, <code>--rag finetune</code>…</td></tr>
+          <tr><td><code>collection.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c mark-ext">◐</td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td class="c"></td><td>скачивание и чистка страниц → один Markdown-файл; в гл. 5 / 7 <code>fetch_article</code> / <code>clean_text</code></td></tr>
+          <tr><td><code>embeddings.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-ext">◐</td><td class="c"></td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c mark-use" title="используется">○</td><td class="c mark-use" title="используется">○</td><td>эмбеддинги через <code>/v1/embeddings</code>; в гл. 4 + <code>EmbeddingIndex</code>, в гл. 6 их пишет Qdrant, в гл. 7 — re-ranking вопросов, в гл. 8 — Chroma</td></tr>
+          <tr><td><code>vectorstore.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td><code>chunk_text</code>, Deep Lake <code>VectorStore</code></td></tr>
+          <tr><td><code>indexing.py</code></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td class="c"></td><td>4 индекса LlamaIndex, обход бага numpy 2; в гл. 7 — <code>KnowledgeGraphIndex</code> и loader</td></tr>
+          <tr><td><code>multimodal.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td>текст + картинки + vision-модель, оценки</td></tr>
+          <tr><td><code>adaptive.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td class="c"></td><td>рейтинг → стратегия, оценщик, журнал человеческих оценок; в гл. 7 <code>tfidf_similarity</code> даёт метрику</td></tr>
+          <tr><td><code>scaling.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td>датасет churn, NumPy KMeans, эмбеддинги → Qdrant, письмо клиенту</td></tr>
+          <tr><td><code>graph.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td>Wikipedia-корпус Marketing, <code>KnowledgeGraphIndex</code> на LlamaIndex, pyvis, re-ranking и метрики</td></tr>
+          <tr><td><code>dynamic.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new" title="создан">●</td><td class="c mark-use" title="используется">○</td><td>датасет SciQ, временная коллекция Chroma, точность ретривера (косинус &gt; 0.7), локальный Hugging Face Llama; в гл. 9 кэш SciQ — источник примеров дообучения и сторона «чистого ретривера» в сравнении</td></tr>
+          <tr><td><code>finetune.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new" title="создан">●</td><td>fine-tuning JSONL из данных SciQ, локальный LoRA на Apple MLX (<code>mlx_lm.lora</code>/<code>fuse</code>), запуск адаптера и сравнение с базовой моделью и ретривером</td></tr>
         </tbody>
       </table>
     </div>
@@ -1090,6 +1093,72 @@ mean = round(63 / 21, 2) = 3.0</div>
   </div>
 </section>
 
+<!-- ================= CHAPTER 9 ================= -->
+<section class="chapter" id="ch9">
+  <div class="station" aria-hidden="true">9</div>
+  <div class="chapter-head">
+    <p class="eyebrow">Глава 9 · Fine-Tuning RAG Data with Human Feedback</p>
+    <h2>Знания переезжают в веса: локальный LoRA на Apple MLX</h2>
+    <p class="lead">Книга берёт набор SciQ — научные вопросы с <i>человеческими</i> саппортами — и превращает их в файл дообучения: чат-примеры, где ответ ассистента это <code>correct_answer + " Explanation: " + support</code>. Книга дообучает <code>gpt-4o-mini</code> через hosted-API OpenAI (платно и закрыто), поэтому здесь реализован <b>open-source аналог</b>: тот же датасет и тот же формат цели, но локальный LoRA на Apple MLX (<code>--provider mlx</code>, без ключа и сети). Данные берутся из кэша SciQ главы 8, а <code>--compare</code> рядом с дообученным ответом ставит базовую модель и «чистый ретривер».</p>
+    <div class="refs"><code>finetune.py</code><code>dynamic.py</code><code>llm.py</code><code>config.py</code></div>
+  </div>
+
+  <div class="block">
+    <div class="block-title"><h3>Три шага — три команды</h3><span class="eyebrow">--collect --corpus finetune → --provider mlx --fine-tune → --rag finetune</span></div>
+    <div class="stack">
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">Подготовка · данные <code>--collect --corpus finetune</code></p>
+        <div class="flow">
+          <div class="node" data-stage="ingest"><span class="k">данные</span><b>кэш SciQ (гл. 8)</b><small>строки с support и correct_answer; скачается один раз при отсутствии кэша</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="ingest"><span class="k">пример</span><b>messages</b><small>system + user-вопрос + assistant = <code>ответ + " Explanation: " + support</code></small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="plain"><span class="k">файл</span><b>qa_prompts_and_completions.jsonl</b><small>один JSON-объект на строку; офлайн</small></div>
+        </div>
+      </div>
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">Дообучение · <code>--provider mlx --fine-tune</code></p>
+        <div class="flow">
+          <div class="node" data-stage="ingest"><span class="k">split</span><b>mlx/train.jsonl</b><small>тот же JSONL делится на <code>train</code>/<code>valid</code> (<code>split_examples</code>)</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="generate"><span class="k">train</span><b>python -m mlx_lm lora --train</b><small>LoRA на Apple silicon, без ключа и GPU-кластера</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="plain"><span class="k">adapter</span><b>adapters/</b><small>веса LoRA; <code>--fuse</code> сливает их в отдельную модель</small></div>
+        </div>
+      </div>
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">Запуск · <code>--rag finetune [--compare]</code></p>
+        <div class="flow">
+          <div class="node" data-stage="generate"><span class="k">дообученная</span><b>base + LoRA adapter</b><small>system «reply with a complete explanation for students», temperature 0.0, без контекста</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="plain"><span class="k">база</span><b>base model (без адаптера)</b><small>тот же вопрос без дообучения и без контекста</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="retrieve"><span class="k">ретривер</span><b>pure retrieval (гл. 8)</b><small>ближайший саппорт SciQ из временной Chroma</small></div>
+        </div>
+      </div>
+    </div>
+    <p class="note" style="margin-top:12px">Локальное дообучение <b>бесплатное и офлайновое</b>: <code>pip install "mlx-lm[train]"</code> (только Apple silicon), ни ключа, ни оплаты. Тот же адаптер можно поднять как сервер: <code>python -m mlx_lm server --model … --adapter-path …</code> — любой OpenAI-совместимый клиент (в т.ч. <code>--provider openai --base-url</code>) его увидит. Живого open-source дроп-ина hosted-API OpenAI нет: <code>mlx-lm</code>, HF TRL+PEFT, LLaMA-Factory, Unsloth — локальные тренеры, а не совместимый сервер.</p>
+  </div>
+
+  <div class="grid-2">
+    <div class="callout">
+      <h4>Open-source вместо хостинга</h4>
+      <p>В книге дообучение идёт через API OpenAI (<code>files.create</code> → <code>fine_tuning.jobs.create</code>) — платно и закрыто. Здесь его заменяет <code>--provider mlx</code>: <code>mlx_lm.lora</code> гоняется локально на Apple silicon (тот же JSONL), а <code>--fuse</code> сливает адаптер. Зависимости <code>deepspeed</code>/<code>bitsandbytes</code> остаются неиспользованными: они про локальное обучение на Linux+CUDA.</p>
+    </div>
+    <div class="callout">
+      <h4>Сравнение, а не только запуск</h4>
+      <p>Шаг 3 книги только запускает дообученную модель. Здесь <code>--compare</code> выводит три ответа рядом: дообученный (адаптер, знание в весах, без контекста), базовый (тот же чекпойнт без адаптера) и чистый ретривер (ближайший саппорт SciQ из коллекции главы 8) — видно, что даёт дообучение против RAG.</p>
+    </div>
+  </div>
+
+  <div class="quiz">
+    <p class="eyebrow">Проверь себя</p>
+    <details><summary>Чем дообучение отличается от RAG, если данные одни и те же?</summary><div>RAG подкладывает найденный контекст в промпт на каждом запросе (знание вне весов, его легко обновить). Дообучение зашивает ответы датасета в веса модели: на запросе контекст не нужен, но обновление стоит нового прогона обучения. Глава показывает оба пути на одном наборе SciQ и сравнивает их ответы.</div></details>
+    <details><summary>Почему данные берутся из кэша главы 8, а не из <code>datasets</code>?</summary><div>Ноутбук заново тянет SciQ библиотекой <code>datasets</code> (и <code>pyarrow</code>). Здесь переиспользуется уже скачанный <code>data/raw/sciq/sciq.jsonl</code>: ни зависимости, ни второй загрузки. Если кэша нет — он подтянется при <code>--collect --corpus finetune</code>.</div></details>
+    <details><summary>Почему выбран именно MLX, а не hosted-API книги?</summary><div>Hosted fine-tuning OpenAI платный, закрытый и требует ключа. MLX — открытый, локальный, бесплатный и работает на этой машине (Apple silicon); он принимает ровно тот же формат <code>messages</code>, что строит шаг данных из SciQ. Готового open-source дроп-ина OpenAI-API нет, поэтому локальный тренер — честный аналог.</div></details>
+  </div>
+</section>
+
 </div><!-- /.line -->
 
 <!-- ================= CHEATSHEET ================= -->
@@ -1122,6 +1191,9 @@ mean = round(63 / 21, 2) = 3.0</div>
         <tr><td>Оценка близости (гл. 8)</td><td>spaCy <code>en_core_web_md</code></td><td>косинус на <code>all-minilm</code> (<code>cosine_similarity</code> из гл. 2)</td></tr>
         <tr><td>Датасет SciQ (гл. 8)</td><td><code>datasets.load_dataset("sciq")</code> в каждом запуске</td><td>датасет-сервер через <code>requests</code> → кэш <code>data/raw/sciq/sciq.jsonl</code></td></tr>
         <tr><td>Хранилище (гл. 8)</td><td>Chroma ephemeral + <code>delete_collection</code></td><td>то же: Chroma в памяти, <code>delete()</code> в конце сеанса</td></tr>
+        <tr><td>Дообучение (гл. 9)</td><td>hosted API OpenAI, база <code>gpt-4o-mini-2024-07-18</code> (платно, закрыто)</td><td>локальный LoRA на Apple MLX: <code>--provider mlx --fine-tune</code> (split → <code>mlx_lm.lora</code>), без ключа</td></tr>
+        <tr><td>Датасет дообучения (гл. 9)</td><td><code>datasets</code> заново + <code>jsonlines</code>, файл на Drive</td><td>кэш SciQ главы 8 + обычный <code>json</code> → <code>data/processed/finetune/*.jsonl</code></td></tr>
+        <tr><td>Запуск (гл. 9)</td><td>только дообученная модель, <code>temperature=0.0</code></td><td><code>--provider mlx --rag finetune</code>; <code>--compare</code> добавляет базовую модель (без адаптера) и чистый ретривер главы 8</td></tr>
       </tbody>
     </table>
   </div>
@@ -1188,6 +1260,15 @@ mean = round(63 / 21, 2) = 3.0</div>
         <div class="cmd"><code>python -m my_rag --rag dynamic --evaluate --limit 50</code><button class="copy" type="button">Копировать</button><span class="what">точность ретривера (косинус &gt; 0.7) по вопросам</span></div>
         <div class="cmd"><code>python -m my_rag --provider hf --rag dynamic "..."</code><button class="copy" type="button">Копировать</button><span class="what">локальная Hugging Face-модель Qwen2.5-0.5B (без токена)</span></div>
       </div>
+      <p class="eyebrow">Глава 9</p>
+      <div class="cmds">
+        <div class="cmd"><code>python -m my_rag --collect --corpus finetune</code><button class="copy" type="button">Копировать</button><span class="what">кэш SciQ → JSONL дообучения (офлайн)</span></div>
+        <div class="cmd"><code>python -m my_rag --provider mlx --fine-tune</code><button class="copy" type="button">Копировать</button><span class="what">open-source: локальный LoRA на Apple MLX, без ключа</span></div>
+        <div class="cmd"><code>python -m my_rag --provider mlx --fine-tune --fuse</code><button class="copy" type="button">Копировать</button><span class="what">+ слить адаптер в отдельную модель (mlx_lm.fuse)</span></div>
+        <div class="cmd"><code>python -m my_rag --provider mlx --fine-tune-status</code><button class="copy" type="button">Копировать</button><span class="what">data-split и адаптеры MLX на диске</span></div>
+        <div class="cmd"><code>python -m my_rag --provider mlx --rag finetune --compare "..."</code><button class="copy" type="button">Копировать</button><span class="what">адаптер MLX / базовая модель / чистый ретривер</span></div>
+        <div class="cmd"><code>python -m mlx_lm server --model mlx-community/Qwen2.5-0.5B-Instruct-4bit --adapter-path data/processed/finetune/adapters</code><button class="copy" type="button">Копировать</button><span class="what">поднять адаптер как OpenAI-совместимый сервер</span></div>
+      </div>
     </div>
   </div>
 
@@ -1210,12 +1291,15 @@ mean = round(63 / 21, 2) = 3.0</div>
         <tr><td><code>data/processed/graph/metrics.json</code></td><td>гл. 7 <code>--rag graph --metrics</code></td><td>ты: читать числа прогона</td></tr>
         <tr><td><code>data/processed/graph/*.html</code> / <code>tree_*.svg</code></td><td>гл. 7 <code>--visualize</code> / <code>--pairs</code></td><td>ты: открыть в браузере</td></tr>
         <tr><td><code>data/raw/sciq/sciq.jsonl</code></td><td>гл. 8 <code>--collect --corpus sciq</code></td><td>гл. 8 <code>--rag dynamic</code> (коллекция Chroma — только в памяти)</td></tr>
+        <tr><td><code>data/processed/finetune/qa_prompts_and_completions.jsonl</code></td><td>гл. 9 <code>--collect --corpus finetune</code></td><td>гл. 9 <code>--provider mlx --fine-tune</code> (делится на train/valid)</td></tr>
+        <tr><td><code>data/processed/finetune/mlx/train.jsonl</code></td><td>гл. 9 <code>--provider mlx --fine-tune</code></td><td><code>mlx_lm.lora --data</code></td></tr>
+        <tr><td><code>data/processed/finetune/adapters/</code></td><td>гл. 9 <code>--provider mlx --fine-tune</code></td><td>гл. 9 <code>--provider mlx --rag finetune</code> / <code>mlx_lm.server</code></td></tr>
       </tbody>
     </table>
   </div>
 </section>
 
-<footer>Числа на странице взяты из твоего репозитория и локального Ollama на 6 октября 2026: размер хранилища, разрезы чанков, вектор вопроса, ранжирование снимков, длины входов главы 5 и статистика датасета churn для главы 6 (10 000 строк, KMeans k=2). Глава 7 и глава 8 описывают пайплайны без собственных замеров: число троек зависит от модели и <code>--limit</code> страниц, а точность главы 8 — от модели эмбеддингов и <code>MY_RAG_SCIENCE_LIMIT</code>.</footer>
+<footer>Числа на странице взяты из твоего репозитория и локального Ollama на 6 октября 2026: размер хранилища, разрезы чанков, вектор вопроса, ранжирование снимков, длины входов главы 5 и статистика датасета churn для главы 6 (10 000 строк, KMeans k=2). Глава 7 и глава 8 описывают пайплайны без собственных замеров: число троек зависит от модели и <code>--limit</code> страниц, а точность главы 8 — от модели эмбеддингов и <code>MY_RAG_SCIENCE_LIMIT</code>. Глава 9 тоже описывает пайплайн без замеров: дообучение локальное (Apple MLX, без ключа), поэтому числа зависят от базовой модели, числа примеров (<code>MY_RAG_FINETUNE_LIMIT</code>) и числа итераций (<code>MY_RAG_MLX_ITERS</code>).</footer>
 </div>
 
 <div class="tip" id="tip" hidden></div>
