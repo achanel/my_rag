@@ -32,6 +32,23 @@ PROVIDER_DEFAULTS: dict[str, dict[str, str]] = {
         "embedding_dimension": "1536",
         "vision_model": "gpt-4o",
     },
+    #: Chapter 8's book runs a local Hugging Face Llama through ``transformers``.
+    #: Generation therefore ignores ``base_url``; embeddings still come from the
+    #: local Ollama ``all-minilm`` endpoint (the same all-MiniLM-L6-v2 chapter 2
+    #: uses), so ``base_url`` points there.
+    #:
+    #: The default is a **small, ungated, local** instruct model
+    #: (``Qwen2.5-0.5B-Instruct``, ~1 GB, runs on CPU) — no HF token and no
+    #: license gate. The book's exact ``meta-llama/Llama-2-7b-chat-hf`` is gated
+    #: (accept its terms + a token); pass it with ``--model`` / ``MY_RAG_MODEL``
+    #: only if you want it, and the ungated default is used if it is inaccessible.
+    "hf": {
+        "base_url": "http://localhost:11434/v1",
+        "model": "Qwen/Qwen2.5-0.5B-Instruct",
+        "embedding_model": "all-minilm",
+        "embedding_dimension": "384",
+        "vision_model": "",
+    },
 }
 
 #: Where chapter 2 embeddings are indexed (git-ignored, like the rest of ``data/``).
@@ -77,6 +94,27 @@ DEFAULT_GRAPH_HTML_DIR = Path("data/processed/graph")
 #: ≈2 minutes) keeps the command runnable, ``--limit`` scales it to 100.
 DEFAULT_GRAPH_LIMIT = 15
 
+#: Where chapter 8's SciQ question/answer dataset is cached (git-ignored). Unlike
+#: the book — which loads it from Hugging Face ``datasets`` in every Colab run —
+#: it is fetched once and kept as JSONL, so ``--rag dynamic`` works offline.
+DEFAULT_SCIENCE_QA = Path("data/raw/sciq/sciq.jsonl")
+
+#: How many SciQ rows chapter 8 embeds by default. The book embeds all 11 679
+#: supports, but every embedding here is one HTTP round-trip to Ollama
+#: (``all-minilm``); 500 keeps a session runnable, ``--limit`` scales it to the
+#: full dataset.
+DEFAULT_SCIENCE_LIMIT = 500
+
+#: Chapter 8's Chroma collection name (the book's ``sciq_supports6``). Chroma's
+#: client runs in memory (ephemeral), so the collection is temporary by design.
+DEFAULT_CHROMA_COLLECTION = "sciq_supports6"
+
+#: Where the Hugging Face access token is read from. The book keeps its token in
+#: a file and exports it as ``HF_TOKEN``; the default path is this machine's
+#: ``~/.config/hugging_face/token`` (override with ``MY_RAG_HF_TOKEN_FILE``, or
+#: set ``HF_TOKEN`` / ``HUGGING_FACE_HUB_TOKEN`` directly).
+DEFAULT_HF_TOKEN_FILE = Path.home() / ".config" / "hugging_face" / "token"
+
 #: Character chunk size for the vector store, matching the book's notebook.
 CHUNK_SIZE = 1000
 
@@ -102,6 +140,35 @@ def load_env(filename: str = ".env", start: Optional[Path] = None) -> Optional[P
     return None
 
 
+def load_hf_token(
+    filename: Optional[Path] = None,
+    *,
+    env_var: str = "HF_TOKEN",
+) -> Optional[str]:
+    """Export the Hugging Face token from a file into ``os.environ``.
+
+    Mirrors the book's secret step (read the token file, set ``HF_TOKEN``), which
+    ``transformers`` / ``huggingface_hub`` then use to reach gated models such as
+    ``meta-llama/Llama-2-7b-chat-hf``. An existing ``HF_TOKEN`` /
+    ``HUGGING_FACE_HUB_TOKEN`` wins (so Colab secrets and CI keep working), and
+    ``MY_RAG_HF_TOKEN_FILE`` overrides the path. Returns the token, or ``None``
+    when no file (or an empty one) is found. The value is never logged.
+    """
+    existing = os.environ.get(env_var) or os.environ.get("HUGGING_FACE_HUB_TOKEN")
+    if existing:
+        return existing
+    path = Path(os.environ.get("MY_RAG_HF_TOKEN_FILE") or filename or DEFAULT_HF_TOKEN_FILE)
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    token = content.strip().split("\n", 1)[0].strip() if content.strip() else ""
+    if not token:
+        return None
+    os.environ[env_var] = token
+    return token
+
+
 @dataclass(frozen=True)
 class Settings:
     """Resolved runtime configuration for a single run."""
@@ -121,6 +188,9 @@ class Settings:
     qdrant_collection: str = DEFAULT_QDRANT_COLLECTION
     graph_store: Path = DEFAULT_GRAPH_STORE
     graph_limit: int = DEFAULT_GRAPH_LIMIT
+    science_qa: Path = DEFAULT_SCIENCE_QA
+    science_limit: int = DEFAULT_SCIENCE_LIMIT
+    chroma_collection: str = DEFAULT_CHROMA_COLLECTION
 
     @classmethod
     def from_env(
@@ -164,8 +234,10 @@ class Settings:
         )
 
         api_key = os.environ.get("OPENAI_API_KEY", "")
-        if not api_key and provider == "ollama":
-            api_key = "ollama"  # Ollama ignores the key, but the SDK requires a non-empty one
+        if not api_key and provider in {"ollama", "hf"}:
+            # Ollama ignores the key; the ``hf`` provider generates locally but its
+            # embeddings still go to Ollama, so both need a non-empty SDK key.
+            api_key = "ollama"
 
         if temperature is None:
             temperature = float(os.environ.get("MY_RAG_TEMPERATURE", "0.1"))
@@ -189,4 +261,9 @@ class Settings:
             qdrant_collection=qdrant_collection,
             graph_store=Path(os.environ.get("MY_RAG_GRAPH_STORE") or DEFAULT_GRAPH_STORE),
             graph_limit=int(os.environ.get("MY_RAG_GRAPH_LIMIT") or DEFAULT_GRAPH_LIMIT),
+            science_qa=Path(os.environ.get("MY_RAG_SCIENCE_QA") or DEFAULT_SCIENCE_QA),
+            science_limit=int(os.environ.get("MY_RAG_SCIENCE_LIMIT") or DEFAULT_SCIENCE_LIMIT),
+            chroma_collection=(
+                os.environ.get("MY_RAG_CHROMA_COLLECTION") or DEFAULT_CHROMA_COLLECTION
+            ),
         )

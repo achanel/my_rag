@@ -61,6 +61,14 @@ it with LlamaIndex (Ollama only; the graph build is one LLM call per chunk, so
     python -m my_rag --rag graph --show-context "What are the 4Ps?"
     python -m my_rag --rag graph --metrics "What are the 4Ps?"
     python -m my_rag --visualize --pairs        # the book's Tree_2_Graph example
+
+Chapter 8 builds a temporary (ephemeral) Chroma collection over the SciQ dataset
+and summarizes the retrieved support (Ollama by default; ``--provider hf`` runs
+the book's local Hugging Face Llama)::
+
+    python -m my_rag --collect --corpus sciq
+    python -m my_rag --rag dynamic "Millions of years ago, plants used energy from the sun to form what?"
+    python -m my_rag --rag dynamic --evaluate --limit 50
 """
 from __future__ import annotations
 
@@ -68,6 +76,7 @@ import argparse
 import os
 import sys
 import textwrap
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -83,6 +92,8 @@ from .config import (
     DEFAULT_IMAGE_DIR,
     DEFAULT_INDEX_STORE,
     DEFAULT_QDRANT_COLLECTION,
+    DEFAULT_SCIENCE_LIMIT,
+    DEFAULT_SCIENCE_QA,
     DEFAULT_VECTOR_STORE,
     Settings,
     load_env,
@@ -129,6 +140,9 @@ DEFAULT_GRAPH_REPORT = Path("data/processed/graph/metrics.json")
 
 #: Where the chapter 7 pyvis graph is written by default.
 DEFAULT_GRAPH_HTML = "Knowledge_graph"
+
+#: The book's chapter 8 question over the SciQ supports.
+DEFAULT_DYNAMIC_QUERY = "Millions of years ago, plants used energy from the sun to form what?"
 
 
 def format_response(response: str, width: int = 80) -> str:
@@ -203,14 +217,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--rag",
         choices=[
             "none", "naive", "advanced", "modular", "embeddings", "index", "multimodal",
-            "adaptive", "qdrant", "graph",
+            "adaptive", "qdrant", "graph", "dynamic",
         ],
         default="none",
         help="RAG variant: none (plain generation), naive (keyword), advanced (TF-IDF vector/index), "
         "modular (selectable method), embeddings (vector store search), index (LlamaIndex index, ch. 3), "
         "multimodal (text + drone images + vision model, ch. 4), adaptive (ranking-driven RAG with "
         "human feedback, ch. 5), qdrant (Qdrant collection over bank-churn records, ch. 6), "
-        "graph (LlamaIndex knowledge graph, ch. 7)",
+        "graph (LlamaIndex knowledge graph, ch. 7), dynamic (temporary Chroma collection over SciQ, ch. 8)",
     )
     parser.add_argument(
         "--method",
@@ -243,16 +257,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--corpus",
-        choices=["wiki", "drone", "visdrone", "churn", "marketing"],
+        choices=["wiki", "drone", "visdrone", "churn", "marketing", "sciq"],
         default="wiki",
         help="corpus for --collect: wiki (ch. 2), drone (ch. 3 text), visdrone (ch. 4 images), "
-        "churn (ch. 6 bank-customer dataset), or marketing (ch. 7 knowledge-graph corpus; default: wiki)",
+        "churn (ch. 6 bank-customer dataset), marketing (ch. 7 knowledge-graph corpus), or "
+        "sciq (ch. 8 SciQ science-QA dataset; default: wiki)",
     )
     parser.add_argument(
         "--output",
         help=f"path for --collect / --embed / --rag index / --rag multimodal / --churn-report / "
-        f"--build-index / --graph (default: {DEFAULT_CORPUS}; drone: {DEFAULT_DRONE_OUTPUT}; "
-        f"churn: {DEFAULT_CHURN_CSV}; marketing: {DEFAULT_MARKETING_OUTPUT})",
+        f"--build-index / --graph / --rag dynamic (default: {DEFAULT_CORPUS}; drone: {DEFAULT_DRONE_OUTPUT}; "
+        f"churn: {DEFAULT_CHURN_CSV}; marketing: {DEFAULT_MARKETING_OUTPUT}; sciq: {DEFAULT_SCIENCE_QA})",
     )
     parser.add_argument(
         "--image-dir",
@@ -265,7 +280,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=f"number of samples/pages: VisDrone images for --collect --corpus visdrone "
         f"(default: {DEFAULT_IMAGE_LIMIT}), Marketing pages for --collect --corpus marketing and "
-        f"--graph (default: {DEFAULT_GRAPH_LIMIT})",
+        f"--graph (default: {DEFAULT_GRAPH_LIMIT}), SciQ rows for --collect --corpus sciq and "
+        f"--rag dynamic (default: {DEFAULT_SCIENCE_LIMIT})",
     )
     parser.add_argument(
         "--vision-model",
@@ -311,8 +327,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--collection",
-        help=f"Qdrant collection for --build-index / --rag qdrant "
-        f"(env MY_RAG_QDRANT_COLLECTION; default: {DEFAULT_QDRANT_COLLECTION})",
+        help=f"collection name for --build-index / --rag qdrant (Qdrant) or --rag dynamic (Chroma) "
+        f"(env MY_RAG_QDRANT_COLLECTION / MY_RAG_CHROMA_COLLECTION; default: {DEFAULT_QDRANT_COLLECTION} / "
+        f"sciq_supports6)",
     )
     parser.add_argument(
         "--embedding-dimension",
@@ -397,6 +414,19 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="collect the corpus by crawling N of the Marketing page's links instead of the "
         "book's URL list (needs the network, no index)",
+    )
+
+    dynamic = parser.add_argument_group("chapter 8 — dynamic RAG (SciQ + Chroma)")
+    dynamic.add_argument(
+        "--evaluate",
+        action="store_true",
+        help="with --rag dynamic, run the book's retrieval-accuracy loop (cosine > 0.7) as well",
+    )
+    dynamic.add_argument(
+        "--keep-collection",
+        action="store_true",
+        help="with --rag dynamic, keep the Chroma collection instead of deleting it at the end "
+        "(the book's ephemeral session deletes it)",
     )
     parser.add_argument("--list-providers", action="store_true", help="list registered providers and exit")
     return parser
@@ -905,6 +935,83 @@ def _settings_for_visualize(args) -> Settings:
     return Settings.from_env(provider=args.provider, model=args.model, base_url=args.base_url)
 
 
+def collect_science_qa_corpus(args, limit: int) -> int:
+    """Download the chapter 8 SciQ dataset and cache it as JSONL (ch. 8)."""
+    from .dynamic import collect_science_qa
+
+    output = Path(args.output) if args.output else DEFAULT_SCIENCE_QA
+    print(f"downloading {limit} SciQ rows -> {output} ...", file=sys.stderr)
+    try:
+        path = collect_science_qa(
+            output, limit=limit, progress=lambda line: print(line, file=sys.stderr)
+        )
+    except Exception as exc:  # no network, unwritable path, bad response, ...
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"wrote {path}", file=sys.stderr)
+    return 0
+
+
+def run_dynamic_query(args, settings: Settings) -> int:
+    """Build a temporary Chroma collection over SciQ and summarize a retrieval (ch. 8)."""
+    from .dynamic import DEFAULT_TOP_K, DynamicRAG, open_science_collection, read_science_qa
+
+    top_k = args.top_k or DEFAULT_TOP_K
+    limit = args.limit or settings.science_limit
+    dataset = Path(args.output) if args.output else settings.science_qa
+    collection = args.collection or settings.chroma_collection
+    session_start = time.perf_counter()
+    index = None
+    answer = None
+    report = None
+    try:
+        rows = read_science_qa(dataset)[:limit]
+        index = open_science_collection(settings, collection=collection)
+        print(
+            f"rag: dynamic (collection: {index.name}, {len(rows)} completions, top_k={top_k})",
+            file=sys.stderr,
+        )
+        index.add_rows(rows)
+        rag = DynamicRAG(settings, index, top_k=top_k)
+        answer = rag.answer(args.query)
+        if args.evaluate:
+            report = rag.evaluate(
+                rows,
+                progress=lambda done, total, question: print(
+                    f"  [{done}/{total}] {question}", file=sys.stderr
+                ),
+            )
+    except Exception as exc:  # missing dataset, embedding endpoint down, ...
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        if index is not None and not args.keep_collection:
+            try:
+                index.delete()
+            except Exception:  # cleanup must not mask the run's real result
+                pass
+
+    if args.show_context:
+        print("Retrieved context:")
+        print("---------------")
+        for match in answer.matches:
+            print(f"[{match.id}] distance {match.distance:.4f}")
+            print(textwrap.fill(match.text, width=args.width))
+            print()
+        print("---------------")
+    print(format_response(answer.response, width=args.width))
+    print()
+    print(f"Matches: {len(answer.matches)} | Response Time: {answer.elapsed:.2f} seconds")
+    if report is not None:
+        print(
+            f"\nRetrieval accuracy over {report.documents} questions "
+            f"(cosine > {report.threshold:.1f}): {report.accuracy:.2%} "
+            f"({report.correct}/{report.documents})"
+        )
+    print(f"Session time: {time.perf_counter() - session_start:.2f} seconds")
+    return 0
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -919,6 +1026,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.query = DEFAULT_QUERY_RECORD
         elif args.rag == "graph":
             args.query = DEFAULT_GRAPH_QUERY
+        elif args.rag == "dynamic":
+            args.query = DEFAULT_DYNAMIC_QUERY
         else:
             args.query = DEFAULT_QUERY
 
@@ -944,6 +1053,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         if args.corpus == "marketing":
             limit = args.limit or int(os.environ.get("MY_RAG_GRAPH_LIMIT") or DEFAULT_GRAPH_LIMIT)
             return collect_marketing_corpus(args, limit)
+        if args.corpus == "sciq":
+            limit = args.limit or int(os.environ.get("MY_RAG_SCIENCE_LIMIT") or DEFAULT_SCIENCE_LIMIT)
+            return collect_science_qa_corpus(args, limit)
         return collect_corpus(Path(args.output) if args.output else DEFAULT_CORPUS, WIKI_URLS)
 
     if args.churn_report:
@@ -972,6 +1084,9 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     if args.rag == "graph":
         return run_graph_query(args, settings)
+
+    if args.rag == "dynamic":
+        return run_dynamic_query(args, settings)
 
     if args.rag == "index":
         return run_index_query(args, settings)

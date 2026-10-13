@@ -1,8 +1,10 @@
 accelerate==1.15.0
 beautifulsoup4==4.15.0
 bitsandbytes==0.50.2
+chromadb==1.5.9
 deeplake==3.9.52
 deepspeed==0.19.7
+huggingface-hub==1.32.0
 llama-index-core==0.14.25
 llama-index-embeddings-ollama==0.10.0
 llama-index-llms-ollama==0.11.0
