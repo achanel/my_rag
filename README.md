@@ -10,8 +10,8 @@ extensible Python package — the notebooks stay as references, not as the code.
 - **`notebooks/`** — one folder per chapter; each `README.md` maps the reference
   notebook to the code and lists every command.
 - **`docs/atlas.html`** — a self-contained infographic (pipelines, retrievers,
-  the chapter 5 feedback loop, the chapter 7 knowledge graph); open it in a
-  browser.
+  the chapter 5 feedback loop, the chapter 7 knowledge graph, the chapter 8
+  temporary Chroma session); open it in a browser.
 - **`tests/`** — offline unit tests with fakes for Ollama, the vision model and
   the web fetch.
 
@@ -82,8 +82,9 @@ for its commands, substitutions and cleanup — the table below is the map.
 | [5 · Adaptive RAG with human feedback](notebooks/05_adaptive_rag_human_feedback/README.md) | Panel ranking picks the generator input; a human-rating loop |
 | [6 · Scaling RAG with Qdrant](notebooks/06_scaling_qdrant/README.md) | Bank-churn dataset, NumPy KMeans segmentation, and a Qdrant-backed index (embed → duplicate → upsert) |
 | [7 · Knowledge-Graph RAG](notebooks/07_knowledge_graph/README.md) | Wikipedia Marketing corpus → a LlamaIndex knowledge graph (triplets), re-ranked querying + metrics |
+| [8 · Dynamic RAG](notebooks/08_dynamic_rag_chroma_hf/README.md) | SciQ corpus → a temporary (ephemeral) Chroma collection, retrieval-accuracy metrics, a local Hugging Face Llama provider |
 
-`notebooks/08…10` are placeholders for the remaining chapters.
+`notebooks/09…10` are placeholders for the remaining chapters.
 
 ## How it works
 
@@ -107,6 +108,7 @@ Each chapter adds a new implementation of it, or a new backend:
 | 5 | none — `RAGPipeline` over the ranking-selected input |
 | 6 | a Qdrant collection (`my_rag.scaling.open_qdrant_index`) |
 | 7 | a LlamaIndex knowledge graph (`my_rag.graph.GraphIndex`) |
+| 8 | none — `DynamicRAG` over the retrieved SciQ support (`my_rag.dynamic`) |
 
 ## Command line
 
@@ -129,8 +131,14 @@ python -m my_rag --no-stream --width 100 "..." # buffer + wrap instead of stream
 | `adaptive` | 5 | [link](notebooks/05_adaptive_rag_human_feedback/README.md) |
 | `qdrant` | 6 | [link](notebooks/06_scaling_qdrant/README.md) |
 | `graph` | 7 | [link](notebooks/07_knowledge_graph/README.md) |
+| `dynamic` | 8 | [link](notebooks/08_dynamic_rag_chroma_hf/README.md) |
 
-`--provider openai` runs everything against OpenAI instead of Ollama.
+`--provider openai` runs everything against OpenAI instead of Ollama;
+`--provider hf` generates with a local Hugging Face `transformers` pipeline
+(chapter 8, default model the small ungated `Qwen/Qwen2.5-0.5B-Instruct`) while
+embeddings stay on Ollama. The book's `meta-llama/Llama-2-7b-chat-hf` is gated —
+pass it with `--model` once you have access; if it is inaccessible, generation
+falls back to the ungated default with a warning.
 
 ## Configuration
 
@@ -141,7 +149,12 @@ Read from `.env`: `MY_RAG_PROVIDER`, `MY_RAG_MODEL`, `MY_RAG_EMBEDDING_MODEL`,
 `MY_RAG_QDRANT_COLLECTION`, `MY_RAG_QDRANT_PATH`, and `QDRANT_URL` /
 `QDRANT_API_KEY` for a remote Qdrant server. Chapter 7 adds
 `MY_RAG_GRAPH_STORE` (the persisted knowledge graph) and `MY_RAG_GRAPH_LIMIT`
-(how many Marketing pages the graph is built from).
+(how many Marketing pages the graph is built from). Chapter 8 adds
+`MY_RAG_SCIENCE_QA` (the cached SciQ dataset), `MY_RAG_SCIENCE_LIMIT` (how many
+SciQ rows a session embeds) and `MY_RAG_CHROMA_COLLECTION` (the temporary Chroma
+collection name). The `hf` provider reads the Hugging Face token from
+`~/.config/hugging_face/token` (override with `MY_RAG_HF_TOKEN_FILE`, or set
+`HF_TOKEN` / `HUGGING_FACE_HUB_TOKEN`).
 
 ## Extending
 
@@ -158,12 +171,12 @@ Read from `.env`: `MY_RAG_PROVIDER`, `MY_RAG_MODEL`, `MY_RAG_EMBEDDING_MODEL`,
 
 - `my_rag/` — the application package (`config`, `llm`, `embeddings`,
   `vectorstore`, `indexing`, `multimodal`, `adaptive`, `scaling`, `graph`,
-  `collection`, `corpus`, `pipeline`, `retrieval`, `cli`).
+  `dynamic`, `collection`, `corpus`, `pipeline`, `retrieval`, `cli`).
 - `notebooks/01_rag_overview` … `notebooks/10_video_stock_production` — one per
   chapter of the reference book; see each folder's `README.md`.
-- `tests/` — offline unit tests for chapters 4–7. Run with
+- `tests/` — offline unit tests for chapters 4–8. Run with
   `python -m unittest discover -s tests`.
-- `docs/atlas.html` — infographic for chapters 1–7.
+- `docs/atlas.html` — infographic for chapters 1–8.
 - `commons/` — shared helpers (API keys, HTTP sessions) extracted as you go.
 - `data/raw`, `data/processed` — input and derived datasets (git-ignored).
 - `models/` — local model checkpoints / cache (git-ignored).
@@ -181,3 +194,8 @@ cover data prep and scraping. Chapter 6 adds `qdrant-client` for the vector inde
 its embedded engine runs locally, so no server or key is needed (the data, EDA and
 clustering commands work without it). Chapter 7 adds `networkx` and `matplotlib`
 (the graph + the `Tree_2_Graph` drawing) and `pyvis` (the interactive graph HTML).
+Chapter 8 adds `chromadb` for the temporary Chroma collection; the SciQ dataset
+comes from the public Hugging Face datasets server over `requests`, and
+`--provider hf` reuses the already-present `transformers` for the book's local
+Hugging Face Llama. `huggingface-hub` is pinned to `<2` because `transformers`
+5.17 requires it — don't let an `hf` CLI self-update bump it.
