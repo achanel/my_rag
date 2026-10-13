@@ -154,7 +154,7 @@ class FakeSession:
         length = int(params.get("length", 100))
         page = self.rows[offset : offset + length]
         payload = {"rows": [{"row": row} for row in page], "num_rows_total": len(self.rows)}
-        return SimpleNamespace(json=lambda: payload, raise_for_status=lambda: None)
+        return SimpleNamespace(status_code=200, json=lambda: payload, raise_for_status=lambda: None)
 
 
 def _settings(**overrides) -> Settings:
@@ -192,6 +192,19 @@ class FetchTests(unittest.TestCase):
         self.assertEqual(rows, PREPARED)
         self.assertGreaterEqual(len(session.calls), 2)
         self.assertEqual(session.calls[0]["dataset"], "allenai/sciq")
+
+    def test_fetch_retries_a_transient_5xx_page(self):
+        class FlakySession(FakeSession):
+            def get(self, url, params=None, headers=None, timeout=None):
+                if not self.calls:
+                    self.calls.append(dict(params or {}))
+                    return SimpleNamespace(status_code=502, raise_for_status=lambda: None)
+                return super().get(url, params=params, headers=headers, timeout=timeout)
+
+        session = FlakySession(RAW_ROWS)
+        with mock.patch("my_rag.dynamic.time.sleep"):
+            rows = fetch_science_qa(3, session=session, page_size=2)
+        self.assertEqual(rows, PREPARED)
 
     def test_bad_limits_are_rejected(self):
         with self.assertRaises(ValueError):

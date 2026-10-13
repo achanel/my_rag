@@ -82,6 +82,10 @@ SCIENCE_QA_ROWS_URL = "https://datasets-server.huggingface.co/rows"
 #: Rows requested per datasets-server call (its default page size).
 SCIENCE_QA_PAGE = 100
 
+#: Attempts per page (and the base back-off, seconds) for transient 5xx answers.
+SCIENCE_QA_RETRIES = 4
+SCIENCE_QA_RETRY_DELAY = 2.0
+
 #: The columns the book drops right after loading SciQ.
 DROP_COLUMNS: tuple[str, ...] = ("distractor3", "distractor1", "distractor2")
 
@@ -158,18 +162,23 @@ def fetch_science_qa(
     offset = 0
     total: Optional[int] = None
     while len(kept) < limit:
-        response = client.get(
-            SCIENCE_QA_ROWS_URL,
-            params={
-                "dataset": SCIENCE_QA_DATASET,
-                "config": SCIENCE_QA_CONFIG,
-                "split": SCIENCE_QA_SPLIT,
-                "offset": offset,
-                "length": page_size,
-            },
-            headers=_HEADERS,
-            timeout=timeout,
-        )
+        for attempt in range(SCIENCE_QA_RETRIES):
+            response = client.get(
+                SCIENCE_QA_ROWS_URL,
+                params={
+                    "dataset": SCIENCE_QA_DATASET,
+                    "config": SCIENCE_QA_CONFIG,
+                    "split": SCIENCE_QA_SPLIT,
+                    "offset": offset,
+                    "length": page_size,
+                },
+                headers=_HEADERS,
+                timeout=timeout,
+            )
+            # The datasets server answers 502/503 now and then; retry those pages.
+            if response.status_code < 500 or attempt == SCIENCE_QA_RETRIES - 1:
+                break
+            time.sleep(SCIENCE_QA_RETRY_DELAY * (attempt + 1))
         response.raise_for_status()
         payload = response.json()
         total = payload.get("num_rows_total", total or 0)

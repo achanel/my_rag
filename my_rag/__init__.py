@@ -14,7 +14,9 @@ ranking-adaptive RAG with a human-feedback loop (:mod:`my_rag.adaptive`). Chapte
 adds the bank-churn dataset, a NumPy KMeans segmentation and a Qdrant-backed index
 (:mod:`my_rag.scaling`). Chapter 7 adds the Wikipedia knowledge graph over the
 Marketing corpus (:mod:`my_rag.graph`; both imported directly, like the other
-optional modules).
+optional modules). Chapter 8 adds dynamic RAG over SciQ with a temporary Chroma
+collection (:mod:`my_rag.dynamic`). Chapter 9 adds OpenAI fine-tuning over the
+SciQ data (:mod:`my_rag.finetune`).
 
 The vector-store and index symbols are resolved lazily (PEP 562) so that
 ``import my_rag`` does not pull in Deep Lake or LlamaIndex unless actually used.
@@ -63,6 +65,26 @@ from .embeddings import (
     cosine_similarity,
     create_embedding_function,
 )
+from .finetune import (
+    FINE_TUNE_SYSTEM,
+    RUN_SYSTEM,
+    Comparison,
+    FineTuneAnswer,
+    FineTunedRAG,
+    MLXFineTuner,
+    MlxRun,
+    build_dataset,
+    build_example,
+    build_mlx_fuse_command,
+    build_mlx_lora_command,
+    collect_finetune_dataset,
+    open_mlx_fine_tuner,
+    prepare_finetune_dataset,
+    read_finetune_jsonl,
+    split_examples,
+    write_finetune_jsonl,
+    write_mlx_dataset,
+)
 from .graph import (
     DEFAULT_GRAPH_STORE,
     DEFAULT_MARKETING_OUTPUT,
@@ -82,7 +104,7 @@ from .graph import (
     rerank,
     write_report,
 )
-from .llm import LLM, create_llm, register_provider
+from .llm import LLM, MlxLLM, create_llm, register_provider
 from .multimodal import (
     MultimodalAnswer,
     MultimodalRAG,
@@ -151,6 +173,7 @@ __all__ = [
     "rerank",
     "write_report",
     "LLM",
+    "MlxLLM",
     "create_llm",
     "register_provider",
     "EmbeddingFunction",
@@ -158,6 +181,24 @@ __all__ = [
     "OpenAICompatibleEmbedding",
     "cosine_similarity",
     "create_embedding_function",
+    "FINE_TUNE_SYSTEM",
+    "RUN_SYSTEM",
+    "Comparison",
+    "FineTuneAnswer",
+    "FineTunedRAG",
+    "MLXFineTuner",
+    "MlxRun",
+    "build_dataset",
+    "build_example",
+    "build_mlx_fuse_command",
+    "build_mlx_lora_command",
+    "collect_finetune_dataset",
+    "open_mlx_fine_tuner",
+    "prepare_finetune_dataset",
+    "read_finetune_jsonl",
+    "split_examples",
+    "write_finetune_jsonl",
+    "write_mlx_dataset",
     "MultimodalAnswer",
     "MultimodalRAG",
     "Sample",

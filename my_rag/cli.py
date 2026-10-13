@@ -69,6 +69,18 @@ the book's local Hugging Face Llama)::
     python -m my_rag --collect --corpus sciq
     python -m my_rag --rag dynamic "Millions of years ago, plants used energy from the sun to form what?"
     python -m my_rag --rag dynamic --evaluate --limit 50
+
+Chapter 9 fine-tunes a small model locally on the SciQ data with Apple MLX (LoRA;
+the open-source, key-free path — the book's OpenAI backend is not used)::
+
+    python -m my_rag --collect --corpus finetune       # SciQ -> fine-tuning JSONL (offline)
+    python -m my_rag --provider mlx --fine-tune         # split + local MLX LoRA train
+    python -m my_rag --provider mlx --fine-tune-status  # the data split + adapters
+    python -m my_rag --provider mlx --rag finetune "..."            # run the adapter
+    python -m my_rag --provider mlx --rag finetune --compare "..."  # + base model + retrieval
+    # serve the adapter for any OpenAI-compatible client:
+    python -m mlx_lm server --model mlx-community/Qwen2.5-0.5B-Instruct-4bit \
+        --adapter-path data/processed/finetune/adapters
 """
 from __future__ import annotations
 
@@ -77,6 +89,7 @@ import os
 import sys
 import textwrap
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import Optional
 
@@ -86,11 +99,15 @@ from .collection import DRONE_URLS, WIKI_URLS, collect
 from .config import (
     CHUNK_SIZE,
     DEFAULT_CHURN_CSV,
+    DEFAULT_FINETUNE_DATA,
+    DEFAULT_FINETUNE_LIMIT,
     DEFAULT_GRAPH_HTML_DIR,
     DEFAULT_GRAPH_LIMIT,
     DEFAULT_GRAPH_STORE,
     DEFAULT_IMAGE_DIR,
     DEFAULT_INDEX_STORE,
+    DEFAULT_MLX_ADAPTERS,
+    DEFAULT_MLX_ITERS,
     DEFAULT_QDRANT_COLLECTION,
     DEFAULT_SCIENCE_LIMIT,
     DEFAULT_SCIENCE_QA,
@@ -144,6 +161,12 @@ DEFAULT_GRAPH_HTML = "Knowledge_graph"
 #: The book's chapter 8 question over the SciQ supports.
 DEFAULT_DYNAMIC_QUERY = "Millions of years ago, plants used energy from the sun to form what?"
 
+#: The book's chapter 9 question to the fine-tuned model.
+DEFAULT_FINETUNE_QUERY = (
+    "What phenomenon makes global winds blow northeast to southwest or the reverse in the "
+    "northern hemisphere and northwest to southeast or the reverse in the southern hemisphere?"
+)
+
 
 def format_response(response: str, width: int = 80) -> str:
     """Wrap the answer in the book's header/footer framing."""
@@ -191,7 +214,8 @@ def build_parser() -> argparse.ArgumentParser:
         f"for --rag adaptive: {DEFAULT_ADAPTIVE_QUERY!r}; for --rag qdrant: a customer record; "
         f"for --rag graph: {DEFAULT_GRAPH_QUERY!r})",
     )
-    parser.add_argument("--provider", help="LLM provider (env MY_RAG_PROVIDER; default: ollama)")
+    parser.add_argument("--provider", help="LLM provider (env MY_RAG_PROVIDER; default: ollama; "
+        "openai, hf — local Hugging Face — or mlx — local Apple MLX fine-tuning/generation)")
     parser.add_argument("--model", help="model name (env MY_RAG_MODEL; default: provider default)")
     parser.add_argument("--base-url", help="OpenAI-compatible endpoint (env OPENAI_BASE_URL)")
     parser.add_argument("--temperature", type=float, help="sampling temperature (env MY_RAG_TEMPERATURE)")
@@ -217,14 +241,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--rag",
         choices=[
             "none", "naive", "advanced", "modular", "embeddings", "index", "multimodal",
-            "adaptive", "qdrant", "graph", "dynamic",
+            "adaptive", "qdrant", "graph", "dynamic", "finetune",
         ],
         default="none",
         help="RAG variant: none (plain generation), naive (keyword), advanced (TF-IDF vector/index), "
         "modular (selectable method), embeddings (vector store search), index (LlamaIndex index, ch. 3), "
         "multimodal (text + drone images + vision model, ch. 4), adaptive (ranking-driven RAG with "
         "human feedback, ch. 5), qdrant (Qdrant collection over bank-churn records, ch. 6), "
-        "graph (LlamaIndex knowledge graph, ch. 7), dynamic (temporary Chroma collection over SciQ, ch. 8)",
+        "graph (LlamaIndex knowledge graph, ch. 7), dynamic (temporary Chroma collection over SciQ, ch. 8), "
+        "finetune (run the locally fine-tuned MLX adapter, ch. 9)",
     )
     parser.add_argument(
         "--method",
@@ -257,17 +282,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--corpus",
-        choices=["wiki", "drone", "visdrone", "churn", "marketing", "sciq"],
+        choices=["wiki", "drone", "visdrone", "churn", "marketing", "sciq", "finetune"],
         default="wiki",
         help="corpus for --collect: wiki (ch. 2), drone (ch. 3 text), visdrone (ch. 4 images), "
-        "churn (ch. 6 bank-customer dataset), marketing (ch. 7 knowledge-graph corpus), or "
-        "sciq (ch. 8 SciQ science-QA dataset; default: wiki)",
+        "churn (ch. 6 bank-customer dataset), marketing (ch. 7 knowledge-graph corpus), "
+        "sciq (ch. 8 SciQ science-QA dataset), or finetune (ch. 9 chat fine-tuning JSONL "
+        "built from SciQ; default: wiki)",
     )
     parser.add_argument(
         "--output",
         help=f"path for --collect / --embed / --rag index / --rag multimodal / --churn-report / "
-        f"--build-index / --graph / --rag dynamic (default: {DEFAULT_CORPUS}; drone: {DEFAULT_DRONE_OUTPUT}; "
-        f"churn: {DEFAULT_CHURN_CSV}; marketing: {DEFAULT_MARKETING_OUTPUT}; sciq: {DEFAULT_SCIENCE_QA})",
+        f"--build-index / --graph / --rag dynamic / --fine-tune (default: {DEFAULT_CORPUS}; drone: "
+        f"{DEFAULT_DRONE_OUTPUT}; churn: {DEFAULT_CHURN_CSV}; marketing: {DEFAULT_MARKETING_OUTPUT}; "
+        f"sciq: {DEFAULT_SCIENCE_QA}; finetune: {DEFAULT_FINETUNE_DATA})",
     )
     parser.add_argument(
         "--image-dir",
@@ -281,7 +308,8 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"number of samples/pages: VisDrone images for --collect --corpus visdrone "
         f"(default: {DEFAULT_IMAGE_LIMIT}), Marketing pages for --collect --corpus marketing and "
         f"--graph (default: {DEFAULT_GRAPH_LIMIT}), SciQ rows for --collect --corpus sciq and "
-        f"--rag dynamic (default: {DEFAULT_SCIENCE_LIMIT})",
+        f"--rag dynamic (default: {DEFAULT_SCIENCE_LIMIT}), fine-tuning examples for "
+        f"--collect --corpus finetune (default: {DEFAULT_FINETUNE_LIMIT})",
     )
     parser.add_argument(
         "--vision-model",
@@ -427,6 +455,42 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="with --rag dynamic, keep the Chroma collection instead of deleting it at the end "
         "(the book's ephemeral session deletes it)",
+    )
+
+    finetune = parser.add_argument_group("chapter 9 — local fine-tuning (SciQ + Apple MLX)")
+    finetune.add_argument(
+        "--fine-tune",
+        action="store_true",
+        help="split the fine-tuning JSONL and run a local Apple MLX LoRA training, then "
+        "exit (ch. 9; needs --provider mlx and mlx-lm on Apple silicon — no key)",
+    )
+    finetune.add_argument(
+        "--fine-tune-status",
+        action="store_true",
+        help="show the local MLX data split and LoRA adapters (ch. 9)",
+    )
+    finetune.add_argument(
+        "--compare",
+        action="store_true",
+        help="with --rag finetune, also run the base model (no adapter) and the chapter-8 "
+        "pure-retrieval answer (needs the SciQ cache) and print all three",
+    )
+    finetune.add_argument(
+        "--adapter-path",
+        help=f"LoRA adapter directory for --provider mlx (env MY_RAG_MLX_ADAPTERS; "
+        f"training output and load path; default: {DEFAULT_MLX_ADAPTERS})",
+    )
+    finetune.add_argument(
+        "--iters",
+        type=int,
+        help=f"MLX LoRA training iterations for --provider mlx --fine-tune "
+        f"(env MY_RAG_MLX_ITERS; default: {DEFAULT_MLX_ITERS})",
+    )
+    finetune.add_argument(
+        "--fuse",
+        action="store_true",
+        help="with --provider mlx --fine-tune, also merge the LoRA adapter into a "
+        "standalone model (mlx_lm.fuse) so it can be served without an adapter",
     )
     parser.add_argument("--list-providers", action="store_true", help="list registered providers and exit")
     return parser
@@ -1012,6 +1076,181 @@ def run_dynamic_query(args, settings: Settings) -> int:
     return 0
 
 
+def collect_finetune_corpus(args, limit: int) -> int:
+    """Build the chapter 9 fine-tuning JSONL from the SciQ dataset (ch. 9, part 1)."""
+    from .finetune import collect_finetune_dataset
+
+    output = Path(args.output) if args.output else DEFAULT_FINETUNE_DATA
+    science = Path(os.environ.get("MY_RAG_SCIENCE_QA") or DEFAULT_SCIENCE_QA)
+    print(f"preparing {limit} fine-tuning examples from {science} -> {output} ...", file=sys.stderr)
+    try:
+        path = collect_finetune_dataset(
+            output,
+            science_qa=science,
+            limit=limit,
+            progress=lambda line: print(line, file=sys.stderr),
+        )
+    except Exception as exc:  # no SciQ cache + no network, unwritable path, ...
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"wrote {path}", file=sys.stderr)
+    return 0
+
+
+def _require_mlx(settings: Settings) -> Optional[int]:
+    """Chapter 9 is a local Apple MLX path; reject other providers with a hint."""
+    if settings.provider == "mlx":
+        return None
+    print(
+        "error: chapter 9 fine-tuning is local Apple MLX; run with --provider mlx "
+        "(needs mlx-lm on Apple silicon: pip install \"mlx-lm[train]\")",
+        file=sys.stderr,
+    )
+    return 1
+
+
+def run_fine_tune(args, settings: Settings) -> int:
+    """Build the MLX dataset split and run a local LoRA training (ch. 9)."""
+    from .finetune import collect_finetune_dataset, open_mlx_fine_tuner, read_finetune_jsonl
+
+    error = _require_mlx(settings)
+    if error is not None:
+        return error
+
+    dataset = Path(args.output) if args.output else settings.finetune_data
+    limit = args.limit or settings.finetune_limit
+    tuner = open_mlx_fine_tuner(settings)
+    if args.iters:
+        tuner.iters = args.iters
+    if args.adapter_path:
+        tuner.adapters = Path(args.adapter_path)
+    try:
+        if not dataset.is_file():
+            collect_finetune_dataset(
+                dataset,
+                science_qa=settings.science_qa,
+                limit=limit,
+                progress=lambda line: print(line, file=sys.stderr),
+            )
+        examples = read_finetune_jsonl(dataset)
+        written = tuner.prepare(examples)
+        print(f"mlx data: {tuner.data_dir} ({len(examples)} examples: {', '.join(sorted(written))})")
+        run = tuner.train()
+    except Exception as exc:  # mlx-lm missing, no weights, no SciQ cache, ...
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"MLX LoRA training done -> {run.adapters} ({run.iters} iterations)")
+    print(f"  run:   python -m my_rag --provider mlx --rag finetune \"...\"")
+    print(f"  serve: {' '.join(run.serve_command())}")
+    if args.fuse:
+        fused = run.adapters.parent / "fused_model"
+        try:
+            tuner.fuse(fused)
+        except Exception as exc:
+            print(f"error: mlx_lm.fuse failed: {exc}", file=sys.stderr)
+            return 1
+        print(f"  fused: python -m mlx_lm generate --model {fused} --prompt ...")
+    return 0
+
+
+def run_fine_tune_status(args, settings: Settings) -> int:
+    """Show the local MLX dataset split and LoRA adapters (ch. 9)."""
+    error = _require_mlx(settings)
+    if error is not None:
+        return error
+
+    data_dir = settings.mlx_data
+    adapters = Path(args.adapter_path) if args.adapter_path else settings.mlx_adapters
+    model = settings.model
+    print(f"mlx data dir: {data_dir}")
+    found = False
+    for name in ("train.jsonl", "valid.jsonl", "test.jsonl"):
+        path = data_dir / name
+        if path.is_file():
+            lines = sum(1 for line in path.open(encoding="utf-8") if line.strip())
+            print(f"  {name}: {lines} examples")
+            found = True
+    if not found:
+        print("  (no split yet; build one with: python -m my_rag --provider mlx --fine-tune)")
+    if adapters.is_dir():
+        names = sorted(item.name for item in adapters.iterdir())
+        print(f"adapters: {adapters} ({', '.join(names) or 'empty'})")
+        print(f"run it with: python -m my_rag --provider mlx --rag finetune \"...\"")
+    else:
+        print(f"no adapters at {adapters}; train with: python -m my_rag --provider mlx --fine-tune")
+    return 0
+
+
+def run_finetune_query(args, settings: Settings) -> int:
+    """Run the locally fine-tuned MLX adapter, optionally vs. base + retrieval (ch. 9)."""
+    from .dynamic import DEFAULT_TOP_K, DynamicRAG, open_science_collection, read_science_qa
+    from .finetune import FineTunedRAG
+
+    error = _require_mlx(settings)
+    if error is not None:
+        return error
+
+    adapters = Path(args.adapter_path) if args.adapter_path else settings.mlx_adapters
+    if not adapters.exists():
+        print(
+            f"error: no MLX adapter at {adapters}; train one with: "
+            "python -m my_rag --provider mlx --fine-tune",
+            file=sys.stderr,
+        )
+        return 1
+    settings = replace(settings, mlx_adapters=adapters)
+
+    index = None
+    retriever = None
+    if args.compare:
+        try:
+            rows = read_science_qa(settings.science_qa)[: (args.limit or settings.science_limit)]
+            index = open_science_collection(
+                settings, collection=args.collection or settings.chroma_collection
+            )
+            index.add_rows(rows)
+            retriever = DynamicRAG(settings, index, top_k=DEFAULT_TOP_K)
+        except Exception as exc:  # no SciQ cache, embedding endpoint down, ...
+            print(
+                f"note: no SciQ retrieval for the comparison ({exc}); "
+                "comparing against the base model only",
+                file=sys.stderr,
+            )
+            index = None
+            retriever = None
+
+    try:
+        rag = FineTunedRAG(settings, retriever=retriever)
+        if args.compare:
+            comparison = rag.compare(args.query)
+        else:
+            answer = rag.answer(args.query)
+    except Exception as exc:  # mlx-lm missing, no weights, ...
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        if index is not None:
+            try:
+                index.delete()
+            except Exception:  # cleanup must not mask the run's real result
+                pass
+
+    if args.compare:
+        print(f"Base model: {settings.model} (+ LoRA adapter)")
+        print(f"Question: {comparison.question}\n")
+        print("Fine-tuned adapter (no context):")
+        print(textwrap.fill(comparison.fine_tuned, width=args.width))
+        print("\nBase model (no adapter, no context):")
+        print(textwrap.fill(comparison.base, width=args.width))
+        if comparison.retrieved:
+            print("\nPure retrieval (nearest SciQ support, no model):")
+            print(textwrap.fill(comparison.retrieved, width=args.width))
+    else:
+        print(format_response(answer.response, width=args.width))
+        print(f"\nModel: {answer.model} | Response Time: {answer.elapsed:.2f} seconds")
+    return 0
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -1028,6 +1267,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.query = DEFAULT_GRAPH_QUERY
         elif args.rag == "dynamic":
             args.query = DEFAULT_DYNAMIC_QUERY
+        elif args.rag == "finetune":
+            args.query = DEFAULT_FINETUNE_QUERY
         else:
             args.query = DEFAULT_QUERY
 
@@ -1056,6 +1297,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         if args.corpus == "sciq":
             limit = args.limit or int(os.environ.get("MY_RAG_SCIENCE_LIMIT") or DEFAULT_SCIENCE_LIMIT)
             return collect_science_qa_corpus(args, limit)
+        if args.corpus == "finetune":
+            limit = args.limit or int(os.environ.get("MY_RAG_FINETUNE_LIMIT") or DEFAULT_FINETUNE_LIMIT)
+            return collect_finetune_corpus(args, limit)
         return collect_corpus(Path(args.output) if args.output else DEFAULT_CORPUS, WIKI_URLS)
 
     if args.churn_report:
@@ -1074,6 +1318,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.build_index:
         return build_vector_index(args, settings)
 
+    if args.fine_tune:
+        return run_fine_tune(args, settings)
+
+    if args.fine_tune_status:
+        return run_fine_tune_status(args, settings)
+
     if args.embed:
         store_path = Path(args.vector_store) if args.vector_store else DEFAULT_VECTOR_STORE
         corpus = Path(args.output) if args.output else DEFAULT_CORPUS
@@ -1087,6 +1337,9 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     if args.rag == "dynamic":
         return run_dynamic_query(args, settings)
+
+    if args.rag == "finetune":
+        return run_finetune_query(args, settings)
 
     if args.rag == "index":
         return run_index_query(args, settings)

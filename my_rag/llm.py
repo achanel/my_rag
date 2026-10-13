@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import warnings
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Callable, Iterator, Optional
 
 from openai import OpenAI
@@ -250,6 +251,96 @@ class HuggingFaceLLM(LLM):
         return generated.replace(text, "", 1).strip()
 
 
+#: Markers for a missing MLX toolchain (``mlx-lm`` only installs on Apple silicon).
+def _mlx_install_hint(error: Exception) -> str:
+    """Add an actionable hint when ``mlx-lm`` is missing."""
+    return (
+        f"{error}\n\n"
+        "hint: the 'mlx' provider needs Apple's MLX fine-tuning stack, which only "
+        "installs on Apple-silicon macOS: pip install \"mlx-lm[train]\". On other "
+        "platforms use --provider openai (chapter 9 fine-tuning) or a local "
+        "transformers model (--provider hf)."
+    )
+
+
+class MlxLLM(LLM):
+    """Local generation through Apple's MLX (``mlx-lm``); Apple silicon only.
+
+    Chapter 9's open-source path: fine-tune a small model locally with LoRA
+    (``python -m my_rag --provider mlx --fine-tune``) and run it here, either
+    directly or through ``mlx_lm.server``. The ``mlx-lm`` import and the model
+    load are lazy, so merely selecting the provider loads nothing. ``adapter_path``
+    (when given) loads a LoRA adapter trained on top of ``model``.
+    """
+
+    def __init__(
+        self,
+        model: str,
+        *,
+        adapter_path: Optional[str] = None,
+        temperature: float = 0.5,
+        max_tokens: int = 256,
+    ) -> None:
+        self.model = model
+        self.adapter_path = adapter_path
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        self._model = None
+        self._tokenizer = None
+
+    def _load(self):
+        """Load (once) and return the ``(model, tokenizer)`` pair (lazy heavy import)."""
+        if self._model is None:
+            try:
+                from mlx_lm import load
+            except ImportError as exc:
+                raise RuntimeError(_mlx_install_hint(exc)) from exc
+            if self.adapter_path and not Path(self.adapter_path).exists():
+                raise FileNotFoundError(
+                    f"MLX adapter {self.adapter_path} not found; train it with: "
+                    "python -m my_rag --provider mlx --fine-tune"
+                )
+            self._model, self._tokenizer = load(self.model, adapter_path=self.adapter_path)
+        return self._model, self._tokenizer
+
+    def _generate(self, model, tokenizer, *, prompt: str, **kwargs) -> str:
+        """Run ``mlx_lm.generate`` (split out so tests can stub the heavy call)."""
+        from mlx_lm import generate
+
+        return str(generate(model, tokenizer, prompt=prompt, **kwargs))
+
+    def complete(
+        self,
+        prompt: str,
+        *,
+        system: Optional[str] = None,
+        temperature: Optional[float] = None,
+    ) -> str:
+        model, tokenizer = self._load()
+        messages: list[dict[str, str]] = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        try:
+            text = tokenizer.apply_chat_template(
+                messages, add_generation_prompt=True, tokenize=False
+            )
+        except Exception:  # a tokenizer without a chat template: fall back to plain text
+            text = f"{system}\n{prompt}" if system else prompt
+        kwargs = {
+            "max_tokens": self.max_tokens,
+            "verbose": False,
+            "temp": self.temperature if temperature is None else temperature,
+        }
+        try:
+            generated = self._generate(model, tokenizer, prompt=text, **kwargs)
+        except TypeError:  # older mlx-lm without the sampling kwargs
+            generated = self._generate(
+                model, tokenizer, prompt=text, max_tokens=self.max_tokens, verbose=False
+            )
+        return generated.strip()
+
+
 ProviderFactory = Callable[[Settings], LLM]
 _PROVIDERS: dict[str, ProviderFactory] = {}
 
@@ -297,6 +388,15 @@ def _huggingface(settings: Settings) -> LLM:
         fallback_model=PROVIDER_DEFAULTS["hf"].get("model"),
         temperature=settings.temperature,
     )
+
+
+@register_provider("mlx")
+def _mlx(settings: Settings) -> LLM:
+    # Chapter 9's open-source local path: Apple MLX generation. If a LoRA adapter
+    # directory exists at ``settings.mlx_adapters`` it is loaded on top of the base
+    # model, so ``--provider mlx --rag finetune`` runs the locally fine-tuned model.
+    adapter = str(settings.mlx_adapters) if settings.mlx_adapters.exists() else None
+    return MlxLLM(settings.model, adapter_path=adapter, temperature=settings.temperature)
 
 
 def available_providers() -> list[str]:

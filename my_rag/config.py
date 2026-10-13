@@ -49,6 +49,19 @@ PROVIDER_DEFAULTS: dict[str, dict[str, str]] = {
         "embedding_dimension": "384",
         "vision_model": "",
     },
+    #: Chapter 9's open-source local fine-tuning path: Apple's MLX + ``mlx-lm``.
+    #: The base model is a small 4-bit MLX community build (Apple-only); the graph
+    #: is trained locally with LoRA (``--fine-tune --provider mlx``) and run either
+    #: through ``mlx_lm.generate``/``mlx_lm.server`` or ``--provider mlx``.
+    #: Embeddings still come from the local Ollama ``all-minilm`` endpoint, so
+    #: ``base_url`` points there (``mlx`` generation ignores it).
+    "mlx": {
+        "base_url": "http://localhost:11434/v1",
+        "model": "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+        "embedding_model": "all-minilm",
+        "embedding_dimension": "384",
+        "vision_model": "",
+    },
 }
 
 #: Where chapter 2 embeddings are indexed (git-ignored, like the rest of ``data/``).
@@ -108,6 +121,28 @@ DEFAULT_SCIENCE_LIMIT = 500
 #: Chapter 8's Chroma collection name (the book's ``sciq_supports6``). Chroma's
 #: client runs in memory (ephemeral), so the collection is temporary by design.
 DEFAULT_CHROMA_COLLECTION = "sciq_supports6"
+
+#: Where chapter 9's chat fine-tuning file is written (git-ignored). The book
+#: writes ``QA_prompts_and_completions.json`` on Drive; here it is a JSONL of
+#: ``{"messages": [...]}`` items built from the same SciQ dataset chapter 8
+#: caches, so it needs no network once SciQ is present. It feeds the local MLX
+#: training directly (``train.jsonl`` is split out of it).
+DEFAULT_FINETUNE_DATA = Path("data/processed/finetune/qa_prompts_and_completions.jsonl")
+
+#: How many SciQ rows chapter 9 turns into fine-tuning examples by default. The
+#: book uses all 10 481 filtered rows; a smaller default keeps a local training
+#: run quick while ``--limit`` scales it up.
+DEFAULT_FINETUNE_LIMIT = 500
+
+#: Where chapter 9's local MLX dataset (``train.jsonl`` etc.) is written
+#: (git-ignored). ``mlx_lm.lora --data`` expects a directory with ``train.jsonl``.
+DEFAULT_MLX_DATA = Path("data/processed/finetune/mlx")
+
+#: Where chapter 9's local MLX LoRA adapters are saved / loaded (git-ignored).
+DEFAULT_MLX_ADAPTERS = Path("data/processed/finetune/adapters")
+
+#: How many MLX LoRA training iterations to run by default (``--iters``).
+DEFAULT_MLX_ITERS = 600
 
 #: Where the Hugging Face access token is read from. The book keeps its token in
 #: a file and exports it as ``HF_TOKEN``; the default path is this machine's
@@ -191,6 +226,11 @@ class Settings:
     science_qa: Path = DEFAULT_SCIENCE_QA
     science_limit: int = DEFAULT_SCIENCE_LIMIT
     chroma_collection: str = DEFAULT_CHROMA_COLLECTION
+    finetune_data: Path = DEFAULT_FINETUNE_DATA
+    finetune_limit: int = DEFAULT_FINETUNE_LIMIT
+    mlx_data: Path = DEFAULT_MLX_DATA
+    mlx_adapters: Path = DEFAULT_MLX_ADAPTERS
+    mlx_iters: int = DEFAULT_MLX_ITERS
 
     @classmethod
     def from_env(
@@ -234,9 +274,9 @@ class Settings:
         )
 
         api_key = os.environ.get("OPENAI_API_KEY", "")
-        if not api_key and provider in {"ollama", "hf"}:
-            # Ollama ignores the key; the ``hf`` provider generates locally but its
-            # embeddings still go to Ollama, so both need a non-empty SDK key.
+        if not api_key and provider in {"ollama", "hf", "mlx"}:
+            # Ollama ignores the key; the ``hf``/``mlx`` providers generate locally
+            # but their embeddings still go to Ollama, so both need a non-empty SDK key.
             api_key = "ollama"
 
         if temperature is None:
@@ -266,4 +306,11 @@ class Settings:
             chroma_collection=(
                 os.environ.get("MY_RAG_CHROMA_COLLECTION") or DEFAULT_CHROMA_COLLECTION
             ),
+            finetune_data=Path(os.environ.get("MY_RAG_FINETUNE_DATA") or DEFAULT_FINETUNE_DATA),
+            finetune_limit=int(
+                os.environ.get("MY_RAG_FINETUNE_LIMIT") or DEFAULT_FINETUNE_LIMIT
+            ),
+            mlx_data=Path(os.environ.get("MY_RAG_MLX_DATA") or DEFAULT_MLX_DATA),
+            mlx_adapters=Path(os.environ.get("MY_RAG_MLX_ADAPTERS") or DEFAULT_MLX_ADAPTERS),
+            mlx_iters=int(os.environ.get("MY_RAG_MLX_ITERS") or DEFAULT_MLX_ITERS),
         )
