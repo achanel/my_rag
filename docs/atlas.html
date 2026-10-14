@@ -294,9 +294,9 @@ html { scroll-behavior: smooth; }
 <div class="wrap">
 
 <header class="masthead">
-  <p class="eyebrow">my_rag · конспект глав 1–8 «RAG-Driven Generative AI» (Rothman)</p>
+  <p class="eyebrow">my_rag · конспект глав 1–10 «RAG-Driven Generative AI» (Rothman)</p>
   <h1>Атлас <span>my_rag</span></h1>
-  <p class="lead">Восемь глав собирают один и тот же пайплайн: <b>найти</b> контекст, <b>склеить</b> его с вопросом, <b>сгенерировать</b> ответ. От главы к главе меняется только то, что ищем и как. Цвет во всех схемах значит одно и то же:</p>
+  <p class="lead">Десять глав собирают один и тот же пайплайн: <b>найти</b> контекст, <b>склеить</b> его с вопросом, <b>сгенерировать</b> ответ. От главы к главе меняется только то, что ищем и как. Цвет во всех схемах значит одно и то же:</p>
   <div class="legend" aria-label="Цвета стадий">
     <span class="chip" data-stage="ingest"><span class="dot"></span><b>Данные</b> сбор, чанки, эмбеддинги</span>
     <span class="chip" data-stage="retrieve"><span class="dot"></span><b>Retrieve</b> поиск контекста</span>
@@ -317,6 +317,7 @@ html { scroll-behavior: smooth; }
     <li><a href="#ch7"><b>7</b> Граф знаний</a></li>
     <li><a href="#ch8"><b>8</b> Dynamic RAG</a></li>
     <li><a href="#ch9"><b>9</b> Fine-tuning</a></li>
+    <li><a href="#ch10"><b>10</b> Видео-сток</a></li>
     <li><a href="#cheat"><b>⌘</b> Шпаргалка</a></li>
   </ol>
 </nav>
@@ -357,7 +358,7 @@ html { scroll-behavior: smooth; }
     </div>
 
     <div class="block">
-      <div class="block-title"><h3>Один протокол, семь реализаций</h3><span class="eyebrow">Retriever</span></div>
+      <div class="block-title"><h3>Один протокол, восемь реализаций</h3><span class="eyebrow">Retriever</span></div>
       <div class="formula">class Retriever(Protocol):
     def retrieve(self, query, *, top_k=1) -&gt; list[str]</div>
       <p class="note" style="margin-top:12px">Любой объект с таким методом подходит в <code>RAGPipeline</code>. Это и есть точка расширения, на которой держатся все главы:</p>
@@ -373,6 +374,7 @@ html { scroll-behavior: smooth; }
           <tr><td>7</td><td>knowledge graph LlamaIndex, обёрнутый <code>GraphRAG</code> (отвечает <code>GraphIndex</code>)</td></tr>
           <tr><td>8</td><td>нет — <code>DynamicRAG</code> поверх найденного саппорта SciQ (временная коллекция Chroma)</td></tr>
           <tr><td>9</td><td>нет — <code>FineTunedRAG</code> запускает дообученную модель; <code>compare()</code> добавляет базовую модель и ретривер гл. 8</td></tr>
+          <tr><td>10</td><td>коллекция Qdrant поверх комментариев к кадрам, обёрнутая <code>VideoExpert</code></td></tr>
         </table>
       </div>
     </div>
@@ -382,24 +384,25 @@ html { scroll-behavior: smooth; }
     <div class="block-title"><h3>Как рос пакет</h3><span class="eyebrow">модуль × глава</span></div>
     <div class="table-wrap">
       <table class="matrix">
-        <thead><tr><th>Модуль</th><th class="c">1</th><th class="c">2</th><th class="c">3</th><th class="c">4</th><th class="c">5</th><th class="c">6</th><th class="c">7</th><th class="c">8</th><th class="c">9</th><th>Главное внутри</th></tr></thead>
+        <thead><tr><th>Модуль</th><th class="c">1</th><th class="c">2</th><th class="c">3</th><th class="c">4</th><th class="c">5</th><th class="c">6</th><th class="c">7</th><th class="c">8</th><th class="c">9</th><th class="c">10</th><th>Главное внутри</th></tr></thead>
         <tbody>
-          <tr><td><code>config.py</code></td><td class="c mark-new" title="создан">●</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td><code>Settings.from_env</code>: флаг CLI → env → дефолт провайдера; путь и коллекция Qdrant; в гл. 7 — <code>graph_store</code> и <code>graph_limit</code>; в гл. 8 — <code>science_qa</code>/<code>science_limit</code> и коллекция Chroma; в гл. 9 — <code>finetune_data</code>/<code>finetune_limit</code> и MLX (<code>mlx_data</code>/<code>mlx_adapters</code>/<code>mlx_iters</code>)</td></tr>
-          <tr><td><code>llm.py</code></td><td class="c mark-new">●</td><td class="c mark-use" title="используется">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-use" title="используется">○</td><td><code>LLM</code> (ABC), <code>@register_provider</code>, OpenAI-совместимый клиент; в гл. 8 — провайдер <code>hf</code> (<code>HuggingFaceLLM</code> через <code>transformers.pipeline</code>); в гл. 9 — провайдер <code>mlx</code> (<code>MlxLLM</code> через <code>mlx-lm</code>)</td></tr>
-          <tr><td><code>pipeline.py</code></td><td class="c mark-new">●</td><td class="c mark-use">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td><code>RAGPipeline</code>, протокол <code>Retriever</code></td></tr>
-          <tr><td><code>corpus.py</code></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td>28 абзацев книги про RAG (<code>DB_RECORDS</code>)</td></tr>
-          <tr><td><code>retrieval.py</code></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td class="c"></td><td>Keyword / TF-IDF Vector / TF-IDF Index / Modular; в гл. 5 и 7 <code>TfidfIndex</code> даёт косинус оценки</td></tr>
-          <tr><td><code>cli.py</code></td><td class="c mark-new">●</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td>каждая глава добавляет флаги: <code>--rag</code>, <code>--collect</code>, <code>--ranking</code>, <code>--build-index</code>, <code>--graph</code>, <code>--rag dynamic</code>, <code>--fine-tune</code>, <code>--rag finetune</code>…</td></tr>
-          <tr><td><code>collection.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c mark-ext">◐</td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td class="c"></td><td>скачивание и чистка страниц → один Markdown-файл; в гл. 5 / 7 <code>fetch_article</code> / <code>clean_text</code></td></tr>
-          <tr><td><code>embeddings.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-ext">◐</td><td class="c"></td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c mark-use" title="используется">○</td><td class="c mark-use" title="используется">○</td><td>эмбеддинги через <code>/v1/embeddings</code>; в гл. 4 + <code>EmbeddingIndex</code>, в гл. 6 их пишет Qdrant, в гл. 7 — re-ranking вопросов, в гл. 8 — Chroma</td></tr>
-          <tr><td><code>vectorstore.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td><code>chunk_text</code>, Deep Lake <code>VectorStore</code></td></tr>
-          <tr><td><code>indexing.py</code></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td class="c"></td><td>4 индекса LlamaIndex, обход бага numpy 2; в гл. 7 — <code>KnowledgeGraphIndex</code> и loader</td></tr>
-          <tr><td><code>multimodal.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td>текст + картинки + vision-модель, оценки</td></tr>
-          <tr><td><code>adaptive.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td class="c"></td><td>рейтинг → стратегия, оценщик, журнал человеческих оценок; в гл. 7 <code>tfidf_similarity</code> даёт метрику</td></tr>
-          <tr><td><code>scaling.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td>датасет churn, NumPy KMeans, эмбеддинги → Qdrant, письмо клиенту</td></tr>
-          <tr><td><code>graph.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td>Wikipedia-корпус Marketing, <code>KnowledgeGraphIndex</code> на LlamaIndex, pyvis, re-ranking и метрики</td></tr>
-          <tr><td><code>dynamic.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new" title="создан">●</td><td class="c mark-use" title="используется">○</td><td>датасет SciQ, временная коллекция Chroma, точность ретривера (косинус &gt; 0.7), локальный Hugging Face Llama; в гл. 9 кэш SciQ — источник примеров дообучения и сторона «чистого ретривера» в сравнении</td></tr>
-          <tr><td><code>finetune.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new" title="создан">●</td><td>fine-tuning JSONL из данных SciQ, локальный LoRA на Apple MLX (<code>mlx_lm.lora</code>/<code>fuse</code>), запуск адаптера и сравнение с базовой моделью и ретривером</td></tr>
+          <tr><td><code>config.py</code></td><td class="c mark-new" title="создан">●</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td><code>Settings.from_env</code>: флаг CLI → env → дефолт провайдера; путь и коллекция Qdrant; в гл. 7 — <code>graph_store</code> и <code>graph_limit</code>; в гл. 8 — <code>science_qa</code>/<code>science_limit</code> и коллекция Chroma; в гл. 9 — <code>finetune_data</code>/<code>finetune_limit</code> и MLX (<code>mlx_data</code>/<code>mlx_adapters</code>/<code>mlx_iters</code>); в гл. 10 — видео (<code>video_dir</code>/<code>video_comments</code>/<code>video_frames</code>), коллекция <code>videos-sports-us</code> и частота сэмплинга кадров</td></tr>
+          <tr><td><code>llm.py</code></td><td class="c mark-new">●</td><td class="c mark-use" title="используется">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-use" title="используется">○</td><td class="c mark-use" title="используется">○</td><td><code>LLM</code> (ABC), <code>@register_provider</code>, OpenAI-совместимый клиент; в гл. 8 — провайдер <code>hf</code> (<code>HuggingFaceLLM</code> через <code>transformers.pipeline</code>); в гл. 9 — провайдер <code>mlx</code> (<code>MlxLLM</code> через <code>mlx-lm</code>)</td></tr>
+          <tr><td><code>pipeline.py</code></td><td class="c mark-new">●</td><td class="c mark-use">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td><code>RAGPipeline</code>, протокол <code>Retriever</code></td></tr>
+          <tr><td><code>corpus.py</code></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td>28 абзацев книги про RAG (<code>DB_RECORDS</code>)</td></tr>
+          <tr><td><code>retrieval.py</code></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td class="c"></td><td class="c"></td><td>Keyword / TF-IDF Vector / TF-IDF Index / Modular; в гл. 5 и 7 <code>TfidfIndex</code> даёт косинус оценки</td></tr>
+          <tr><td><code>cli.py</code></td><td class="c mark-new">●</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td class="c mark-ext" title="расширен">◐</td><td>каждая глава добавляет флаги: <code>--rag</code>, <code>--collect</code>, <code>--ranking</code>, <code>--build-index</code>, <code>--graph</code>, <code>--rag dynamic</code>, <code>--fine-tune</code>, <code>--rag finetune</code>, <code>--comment-video</code>, <code>--build-video-index</code>, <code>--rag video</code>…</td></tr>
+          <tr><td><code>collection.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c mark-ext">◐</td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td class="c"></td><td class="c"></td><td>скачивание и чистка страниц → один Markdown-файл; в гл. 5 / 7 <code>fetch_article</code> / <code>clean_text</code></td></tr>
+          <tr><td><code>embeddings.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-ext">◐</td><td class="c"></td><td class="c mark-use">○</td><td class="c mark-use">○</td><td class="c mark-use" title="используется">○</td><td class="c mark-use" title="используется">○</td><td class="c mark-use" title="используется">○</td><td>эмбеддинги через <code>/v1/embeddings</code>; в гл. 4 + <code>EmbeddingIndex</code>, в гл. 6 их пишет Qdrant, в гл. 7 — re-ranking вопросов, в гл. 8 — Chroma</td></tr>
+          <tr><td><code>vectorstore.py</code></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td><code>chunk_text</code>, Deep Lake <code>VectorStore</code></td></tr>
+          <tr><td><code>indexing.py</code></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td class="c"></td><td class="c"></td><td>4 индекса LlamaIndex, обход бага numpy 2; в гл. 7 — <code>KnowledgeGraphIndex</code> и loader</td></tr>
+          <tr><td><code>multimodal.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-use" title="используется">○</td><td>текст + картинки + vision-модель, оценки</td></tr>
+          <tr><td><code>adaptive.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c mark-use">○</td><td class="c"></td><td class="c"></td><td class="c"></td><td>рейтинг → стратегия, оценщик, журнал человеческих оценок; в гл. 7 <code>tfidf_similarity</code> даёт метрику</td></tr>
+          <tr><td><code>scaling.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-use" title="используется">○</td><td>датасет churn, NumPy KMeans, эмбеддинги → Qdrant, письмо клиенту</td></tr>
+          <tr><td><code>graph.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new">●</td><td class="c"></td><td class="c"></td><td class="c"></td><td>Wikipedia-корпус Marketing, <code>KnowledgeGraphIndex</code> на LlamaIndex, pyvis, re-ranking и метрики</td></tr>
+          <tr><td><code>dynamic.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new" title="создан">●</td><td class="c mark-use" title="используется">○</td><td class="c mark-use" title="используется">○</td><td>датасет SciQ, временная коллекция Chroma, точность ретривера (косинус &gt; 0.7), локальный Hugging Face Llama; в гл. 9 кэш SciQ — источник примеров дообучения и сторона «чистого ретривера» в сравнении</td></tr>
+          <tr><td><code>finetune.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new" title="создан">●</td><td class="c"></td><td>fine-tuning JSONL из данных SciQ, локальный LoRA на Apple MLX (<code>mlx_lm.lora</code>/<code>fuse</code>), запуск адаптера и сравнение с базовой моделью и ретривером</td></tr>
+          <tr><td><code>video.py</code></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c mark-new" title="создан">●</td><td>frames → vision-комментарии → Qdrant-индекс поверх комментариев (<code>videos-sports-us</code>), «видео-эксперт» переписывает найденный комментарий и размечает его, оценщик считает similarity + F1/точность</td></tr>
         </tbody>
       </table>
     </div>
@@ -1159,6 +1162,74 @@ mean = round(63 / 21, 2) = 3.0</div>
   </div>
 </section>
 
+<!-- ================= CHAPTER 10 ================= -->
+<section class="chapter" id="ch10">
+  <div class="station" aria-hidden="true">10</div>
+  <div class="chapter-head">
+    <p class="eyebrow">Глава 10 · RAG for Video Stock Production</p>
+    <h2>Видео-сток: кадр → комментарий → вектор → эксперт</h2>
+    <p class="lead">Книга строит RAG для библиотеки стоковых видео в три шага: видео режется на кадры (OpenCV), каждый сэмплированный кадр описывает vision-модель, комментарии уходят в вектора и индексируются, а запрос ищет комментарий и просит модель переписать его «в логичном увлекательном стиле» с меткой (basketball, football, soccer…). Дальше оценщик сравнивает переписку с человеческими флеш-картами. Книга берёт Pinecone + GPT-4o Vision (платно), поэтому здесь хранилище — локальный <b>Qdrant</b> с той же коллекцией <code>videos-sports-us</code>, vision по умолчанию — <code>gemma3:12b</code> через Ollama, а индекс/эксперт собираются из готовых CSV комментариев книги (без видео и OpenCV).</p>
+    <div class="refs"><code>video.py</code><code>scaling.py</code><code>multimodal.py</code><code>dynamic.py</code><code>llm.py</code><code>config.py</code></div>
+  </div>
+
+  <div class="block">
+    <div class="block-title"><h3>Три шага — три команды</h3><span class="eyebrow">--comment-video → --build-video-index → --rag video</span></div>
+    <div class="stack">
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">Комментатор · <code>--comment-video [--sample N]</code></p>
+        <div class="flow">
+          <div class="node" data-stage="ingest"><span class="k">видео</span><b>alpinist1.mp4</b><small>из книги (GitHub) или локальный файл</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="ingest"><span class="k">кадры</span><b>split → frame_N.jpg</b><small><code>cv2.VideoCapture</code>; сэмплинг каждого N-го (2, 5, 8, …)</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="generate"><span class="k">vision</span><b>«What is happening?»</b><small>gemma3:12b / gpt-4o; кадр как data:image/jpeg;base64</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="plain"><span class="k">CSV</span><b>&lt;video&gt;.csv</b><small>ID, FrameNumber, Comment, FileName</small></div>
+        </div>
+      </div>
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">Администратор · <code>--build-video-index</code></p>
+        <div class="flow">
+          <div class="node" data-stage="ingest"><span class="k">данные</span><b>21 CSV комментариев</b><small><code>--collect --corpus video-comments</code> (готовые файлы книги)</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="ingest"><span class="k">чанк</span><b>один комментарий = чанк</b><small>эмбеддинги <code>all-minilm</code></small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="retrieve"><span class="k">индекс</span><b>Qdrant (not Pinecone)</b><small>коллекция <code>videos-sports-us</code>, cosine, батчи по 100</small></div>
+        </div>
+      </div>
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">Эксперт + оценка · <code>--rag video [--evaluate]</code></p>
+        <div class="flow">
+          <div class="node" data-stage="retrieve"><span class="k">запрос</span><b>k=1 ближайший комментарий</b><small>«Find a basketball player … dunk»</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="generate"><span class="k">переписка</span><b>rewrite + Label:</b><small>system книги, temperature 0.0</small></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="node" data-stage="augment"><span class="k">оценка</span><b>cosine(переписка, флеш-карта)</b><small>+ F1/precision/recall/accuracy (порог 0.6) и матрица ошибок</small></div>
+        </div>
+      </div>
+    </div>
+    <p class="note" style="margin-top:12px">Pinecone заменён на <b>Qdrant</b> (как в гл. 6): тот же локальный движок без ключа и сервера, та же коллекция <code>videos-sports-us</code> и метрика cosine. Отличие от книги — размерность вектора берётся из модели эмбеддингов (384 у <code>all-minilm</code>, а не жёстко 1536). Комментарии и индекс живут на диске (<code>data/raw/video_comments</code>, <code>data/processed/qdrant</code>); видео и кадры нужны только для <code>--comment-video</code> и <code>--video-info</code> (OpenCV — бесплатный и локальный, объявлен в <code>requirements.txt</code> как <code>opencv-python-headless</code>). Локальная vision-модель отвечает десятки секунд на кадр, поэтому <code>MY_RAG_VIDEO_LIMIT</code> (по умолчанию 6) ограничивает число описываемых кадров, а <code>--limit 0</code> берёт всё видео. Токенов, аккаунтов и платных сервисов глава не требует — Ollama (vision/генерация/эмбеддинги), локальный Qdrant и OpenCV; видео и комментарии книги берутся из публичного GitHub без авторизации.</p>
+  </div>
+
+  <div class="grid-2">
+    <div class="callout">
+      <h4>Vision-модель вместо GPT-4o</h4>
+      <p>Кадр уходит тем же <code>data:image/jpeg;base64</code> URL и с тем же вопросом <i>«What is happening in this image?»</i>, но модель — <code>MY_RAG_VISION_MODEL</code>: по умолчанию локальная <code>gemma3:12b</code> через Ollama, а <code>--provider openai</code> включает <code>gpt-4o</code>. OpenAI-совместимый клиент один и тот же.</p>
+    </div>
+    <div class="callout">
+      <h4>Оценщик без sentence-transformers</h4>
+      <p>Книга считает близость переписки с флеш-картой моделью <code>all-MiniLM-L6-v2</code> и метрики <code>scikit-learn</code>. Здесь и близость, и метрики идут через тот же <code>all-minilm</code> и numpy: <code>describe()</code> (mean/median/spread/IQR) и <code>classify()</code> (F1/precision/recall/accuracy + матрица ошибок при пороге 0.6).</p>
+    </div>
+  </div>
+
+  <div class="quiz">
+    <p class="eyebrow">Проверь себя</p>
+    <details><summary>Почему индекс можно собрать без видео и без vision-модели?</summary><div>Ноутбук Pipeline 2 грузит уже готовые CSV с комментариями (<code>Chapter10/comments</code>). Здесь их скачивает <code>--collect --corpus video-comments</code>, и <code>--build-video-index</code> просто эмбеддит комментарии. Видео, OpenCV и vision-модель нужны только шагу 1 (<code>--comment-video</code>).</div></details>
+    <details><summary>Что именно оценивает <code>--evaluate</code>?</summary><div>Для каждого из 10 примеров книги берётся запрос, из индекса достаётся ближайший комментарий (его score — «истинная» сторона), модель переписывает комментарий, и считается косинус переписки с человеческой флеш-картой. Затем по порогу 0.6 считаются F1/precision/recall/accuracy и матрица ошибок — ровно блоки ноутбука.</div></details>
+    <details><summary>Чем Pinecone из книги отличается от Qdrant здесь?</summary><div>Pinecone — платный managed-сервис с API-ключом и облаком/регионом. Qdrant — открытый; его python-клиент держит локальный движок на диске, поэтому ни ключа, ни сервера не нужно. Имя коллекции (<code>videos-sports-us</code>), метрика (cosine) и батч-апсерт сохранены; меняется только размерность вектора под модель эмбеддингов.</div></details>
+  </div>
+</section>
+
 </div><!-- /.line -->
 
 <!-- ================= CHEATSHEET ================= -->
@@ -1194,6 +1265,10 @@ mean = round(63 / 21, 2) = 3.0</div>
         <tr><td>Дообучение (гл. 9)</td><td>hosted API OpenAI, база <code>gpt-4o-mini-2024-07-18</code> (платно, закрыто)</td><td>локальный LoRA на Apple MLX: <code>--provider mlx --fine-tune</code> (split → <code>mlx_lm.lora</code>), без ключа</td></tr>
         <tr><td>Датасет дообучения (гл. 9)</td><td><code>datasets</code> заново + <code>jsonlines</code>, файл на Drive</td><td>кэш SciQ главы 8 + обычный <code>json</code> → <code>data/processed/finetune/*.jsonl</code></td></tr>
         <tr><td>Запуск (гл. 9)</td><td>только дообученная модель, <code>temperature=0.0</code></td><td><code>--provider mlx --rag finetune</code>; <code>--compare</code> добавляет базовую модель (без адаптера) и чистый ретривер главы 8</td></tr>
+        <tr><td>Vision (гл. 10)</td><td>GPT-4o Vision, <code>data:image/jpeg;base64</code></td><td><code>gemma3:12b</code> (Ollama) или <code>gpt-4o</code> (OpenAI) — тот же data-URL</td></tr>
+        <tr><td>Хранилище (гл. 10)</td><td>Pinecone serverless, <code>videos-sports-us</code>, <code>dimension=1536</code>, ключ</td><td>Qdrant, та же коллекция и cosine; размерность = модель эмбеддингов (384 у <code>all-minilm</code>)</td></tr>
+        <tr><td>Комментарии (гл. 10)</td><td>vision на каждый 3-й кадр, CSV на Drive</td><td>тот же сэмплинг; готовые CSV книги (<code>--collect --corpus video-comments</code>) + <code>--comment-video</code> → <code>data/raw/video_comments</code></td></tr>
+        <tr><td>Оценка (гл. 10)</td><td>sentence-transformers <code>all-MiniLM-L6-v2</code> + scikit-learn (F1, матрица ошибок)</td><td>тот же <code>all-minilm</code> через Ollama + numpy (<code>describe</code> / <code>classify</code>)</td></tr>
       </tbody>
     </table>
   </div>
@@ -1269,6 +1344,15 @@ mean = round(63 / 21, 2) = 3.0</div>
         <div class="cmd"><code>python -m my_rag --provider mlx --rag finetune --compare "..."</code><button class="copy" type="button">Копировать</button><span class="what">адаптер MLX / базовая модель / чистый ретривер</span></div>
         <div class="cmd"><code>python -m mlx_lm server --model mlx-community/Qwen2.5-0.5B-Instruct-4bit --adapter-path data/processed/finetune/adapters</code><button class="copy" type="button">Копировать</button><span class="what">поднять адаптер как OpenAI-совместимый сервер</span></div>
       </div>
+      <p class="eyebrow">Глава 10</p>
+      <div class="cmds">
+        <div class="cmd"><code>python -m my_rag --collect --corpus video-comments</code><button class="copy" type="button">Копировать</button><span class="what">21 CSV комментариев книги → data/raw/video_comments (нужна сеть, один раз)</span></div>
+        <div class="cmd"><code>python -m my_rag --comment-video --video alpinist1.mp4</code><button class="copy" type="button">Копировать</button><span class="what">split → vision-комментарии первых кадров → CSV (OpenCV + vision, локально)</span></div>
+        <div class="cmd"><code>python -m my_rag --build-video-index</code><button class="copy" type="button">Копировать</button><span class="what">комментарии → эмбеддинги → Qdrant (локально, без ключа)</span></div>
+        <div class="cmd"><code>python -m my_rag --rag video "Find a basketball player that is scoring with a dunk."</code><button class="copy" type="button">Копировать</button><span class="what">ближайший комментарий → переписка + метка</span></div>
+        <div class="cmd"><code>python -m my_rag --rag video --evaluate</code><button class="copy" type="button">Копировать</button><span class="what">10 примеров книги: similarity + F1/precision/recall/accuracy и матрица ошибок</span></div>
+        <div class="cmd"><code>python -m my_rag --video-info --video alpinist1.mp4</code><button class="copy" type="button">Копировать</button><span class="what">кадры, fps, длительность + миниатюра (OpenCV + Pillow)</span></div>
+      </div>
     </div>
   </div>
 
@@ -1294,12 +1378,16 @@ mean = round(63 / 21, 2) = 3.0</div>
         <tr><td><code>data/processed/finetune/qa_prompts_and_completions.jsonl</code></td><td>гл. 9 <code>--collect --corpus finetune</code></td><td>гл. 9 <code>--provider mlx --fine-tune</code> (делится на train/valid)</td></tr>
         <tr><td><code>data/processed/finetune/mlx/train.jsonl</code></td><td>гл. 9 <code>--provider mlx --fine-tune</code></td><td><code>mlx_lm.lora --data</code></td></tr>
         <tr><td><code>data/processed/finetune/adapters/</code></td><td>гл. 9 <code>--provider mlx --fine-tune</code></td><td>гл. 9 <code>--provider mlx --rag finetune</code> / <code>mlx_lm.server</code></td></tr>
+        <tr><td><code>data/raw/videos/</code></td><td>гл. 10 <code>--collect --corpus videos</code> / <code>--video-info</code> / <code>--comment-video</code></td><td>гл. 10 split кадров</td></tr>
+        <tr><td><code>data/raw/video_frames/</code></td><td>гл. 10 <code>--comment-video</code> / <code>--video-info</code></td><td>ты: открыть кадры и миниатюру</td></tr>
+        <tr><td><code>data/raw/video_comments/*.mp4.csv</code></td><td>гл. 10 <code>--collect --corpus video-comments</code> / <code>--comment-video</code></td><td>гл. 10 <code>--build-video-index</code></td></tr>
+        <tr><td><code>data/processed/qdrant</code> (коллекция <code>videos-sports-us</code>)</td><td>гл. 10 <code>--build-video-index</code></td><td>гл. 10 <code>--rag video</code> (делит движок с гл. 6)</td></tr>
       </tbody>
     </table>
   </div>
 </section>
 
-<footer>Числа на странице взяты из твоего репозитория и локального Ollama на 6 октября 2026: размер хранилища, разрезы чанков, вектор вопроса, ранжирование снимков, длины входов главы 5 и статистика датасета churn для главы 6 (10 000 строк, KMeans k=2). Глава 7 и глава 8 описывают пайплайны без собственных замеров: число троек зависит от модели и <code>--limit</code> страниц, а точность главы 8 — от модели эмбеддингов и <code>MY_RAG_SCIENCE_LIMIT</code>. Глава 9 тоже описывает пайплайн без замеров: дообучение локальное (Apple MLX, без ключа), поэтому числа зависят от базовой модели, числа примеров (<code>MY_RAG_FINETUNE_LIMIT</code>) и числа итераций (<code>MY_RAG_MLX_ITERS</code>).</footer>
+<footer>Числа на странице взяты из твоего репозитория и локального Ollama на 6 октября 2026: размер хранилища, разрезы чанков, вектор вопроса, ранжирование снимков, длины входов главы 5 и статистика датасета churn для главы 6 (10 000 строк, KMeans k=2). Глава 7 и глава 8 описывают пайплайны без собственных замеров: число троек зависит от модели и <code>--limit</code> страниц, а точность главы 8 — от модели эмбеддингов и <code>MY_RAG_SCIENCE_LIMIT</code>. Глава 9 тоже описывает пайплайн без замеров: дообучение локальное (Apple MLX, без ключа), поэтому числа зависят от базовой модели, числа примеров (<code>MY_RAG_FINETUNE_LIMIT</code>) и числа итераций (<code>MY_RAG_MLX_ITERS</code>). Глава 10 — тоже без собственных замеров: метрики оценщика зависят от vision-модели, числа комментариев (<code>--limit</code>) и модели эмбеддингов, а число кадров — от длины видео и частоты сэмплинга (<code>MY_RAG_VIDEO_SAMPLE</code>).</footer>
 </div>
 
 <div class="tip" id="tip" hidden></div>
@@ -1595,7 +1683,7 @@ if (typeof module !== 'undefined') module.exports = RAG;
         links.forEach(function (a) { a.classList.toggle('is-active', a.getAttribute('href') === '#' + en.target.id); });
       });
     }, { rootMargin: '-45% 0px -50% 0px' });
-    ['core', 'ch1', 'ch2', 'ch3', 'ch4', 'ch5', 'ch6', 'ch7', 'ch8', 'cheat'].forEach(function (id) { var s = document.getElementById(id); if (s) io.observe(s); });
+    ['core', 'ch1', 'ch2', 'ch3', 'ch4', 'ch5', 'ch6', 'ch7', 'ch8', 'ch9', 'ch10', 'cheat'].forEach(function (id) { var s = document.getElementById(id); if (s) io.observe(s); });
   }
 })();
 </script>

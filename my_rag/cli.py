@@ -112,6 +112,12 @@ from .config import (
     DEFAULT_SCIENCE_LIMIT,
     DEFAULT_SCIENCE_QA,
     DEFAULT_VECTOR_STORE,
+    DEFAULT_VIDEO_COLLECTION,
+    DEFAULT_VIDEO_COMMENTS,
+    DEFAULT_VIDEO_DIR,
+    DEFAULT_VIDEO_FRAMES,
+    DEFAULT_VIDEO_LIMIT,
+    DEFAULT_VIDEO_SAMPLE,
     Settings,
     load_env,
 )
@@ -137,6 +143,7 @@ from .multimodal import DEFAULT_IMAGE_LIMIT, IMAGE_TOP_K, TEXT_TOP_K
 from .pipeline import RAGPipeline
 from .retrieval import create_retriever
 from .scaling import DEFAULT_DSIZE, DEFAULT_QUERY_RECORD
+from .video import DEFAULT_VIDEO
 
 DEFAULT_QUERY = "define a rag store"
 
@@ -166,6 +173,9 @@ DEFAULT_FINETUNE_QUERY = (
     "What phenomenon makes global winds blow northeast to southwest or the reverse in the "
     "northern hemisphere and northwest to southeast or the reverse in the southern hemisphere?"
 )
+
+#: The book's chapter 10 question over the video-comment index (Pipeline 3).
+DEFAULT_VIDEO_QUERY = "Find a basketball player that is scoring with a dunk."
 
 
 def format_response(response: str, width: int = 80) -> str:
@@ -241,7 +251,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--rag",
         choices=[
             "none", "naive", "advanced", "modular", "embeddings", "index", "multimodal",
-            "adaptive", "qdrant", "graph", "dynamic", "finetune",
+            "adaptive", "qdrant", "graph", "dynamic", "finetune", "video",
         ],
         default="none",
         help="RAG variant: none (plain generation), naive (keyword), advanced (TF-IDF vector/index), "
@@ -249,7 +259,8 @@ def build_parser() -> argparse.ArgumentParser:
         "multimodal (text + drone images + vision model, ch. 4), adaptive (ranking-driven RAG with "
         "human feedback, ch. 5), qdrant (Qdrant collection over bank-churn records, ch. 6), "
         "graph (LlamaIndex knowledge graph, ch. 7), dynamic (temporary Chroma collection over SciQ, ch. 8), "
-        "finetune (run the locally fine-tuned MLX adapter, ch. 9)",
+        "finetune (run the locally fine-tuned MLX adapter, ch. 9), "
+        "video (video-comment index + rewriting expert, ch. 10)",
     )
     parser.add_argument(
         "--method",
@@ -282,12 +293,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--corpus",
-        choices=["wiki", "drone", "visdrone", "churn", "marketing", "sciq", "finetune"],
+        choices=["wiki", "drone", "visdrone", "churn", "marketing", "sciq", "finetune",
+                 "videos", "video-comments"],
         default="wiki",
         help="corpus for --collect: wiki (ch. 2), drone (ch. 3 text), visdrone (ch. 4 images), "
         "churn (ch. 6 bank-customer dataset), marketing (ch. 7 knowledge-graph corpus), "
-        "sciq (ch. 8 SciQ science-QA dataset), or finetune (ch. 9 chat fine-tuning JSONL "
-        "built from SciQ; default: wiki)",
+        "sciq (ch. 8 SciQ science-QA dataset), finetune (ch. 9 chat fine-tuning JSONL "
+        "built from SciQ), videos (ch. 10 stock videos), video-comments (ch. 10 frame "
+        "comments from the book's GitHub; default: wiki)",
     )
     parser.add_argument(
         "--output",
@@ -309,7 +322,10 @@ def build_parser() -> argparse.ArgumentParser:
         f"(default: {DEFAULT_IMAGE_LIMIT}), Marketing pages for --collect --corpus marketing and "
         f"--graph (default: {DEFAULT_GRAPH_LIMIT}), SciQ rows for --collect --corpus sciq and "
         f"--rag dynamic (default: {DEFAULT_SCIENCE_LIMIT}), fine-tuning examples for "
-        f"--collect --corpus finetune (default: {DEFAULT_FINETUNE_LIMIT})",
+        f"--collect --corpus finetune (default: {DEFAULT_FINETUNE_LIMIT}), comment rows the "
+        f"chapter 10 video index ingests (default: all), sampled frames --comment-video "
+        f"describes (env MY_RAG_VIDEO_LIMIT; 0 = all, default: {DEFAULT_VIDEO_LIMIT}), "
+        f"frame number for --video-info",
     )
     parser.add_argument(
         "--vision-model",
@@ -355,9 +371,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--collection",
-        help=f"collection name for --build-index / --rag qdrant (Qdrant) or --rag dynamic (Chroma) "
-        f"(env MY_RAG_QDRANT_COLLECTION / MY_RAG_CHROMA_COLLECTION; default: {DEFAULT_QDRANT_COLLECTION} / "
-        f"sciq_supports6)",
+        help=f"collection name for --build-index / --rag qdrant (Qdrant), --rag video / "
+        f"--build-video-index (Qdrant, ch. 10) or --rag dynamic (Chroma) "
+        f"(env MY_RAG_QDRANT_COLLECTION / MY_RAG_VIDEO_COLLECTION / MY_RAG_CHROMA_COLLECTION; "
+        f"default: {DEFAULT_QDRANT_COLLECTION} / {DEFAULT_VIDEO_COLLECTION} / sciq_supports6)",
     )
     parser.add_argument(
         "--embedding-dimension",
@@ -448,7 +465,9 @@ def build_parser() -> argparse.ArgumentParser:
     dynamic.add_argument(
         "--evaluate",
         action="store_true",
-        help="with --rag dynamic, run the book's retrieval-accuracy loop (cosine > 0.7) as well",
+        help="with --rag dynamic, run the book's retrieval-accuracy loop (cosine > 0.7); "
+        "with --rag video, run the chapter 10 evaluator (similarity + F1/precision/recall/"
+        "accuracy over the book's sample), as well",
     )
     dynamic.add_argument(
         "--keep-collection",
@@ -491,6 +510,53 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="with --provider mlx --fine-tune, also merge the LoRA adapter into a "
         "standalone model (mlx_lm.fuse) so it can be served without an adapter",
+    )
+
+    video = parser.add_argument_group("chapter 10 — video stock production (frames + vision + Qdrant)")
+    video.add_argument(
+        "--comment-video",
+        action="store_true",
+        help="split a video into frames, comment sampled frames with the vision model, and "
+        "write the comment CSV, then exit (ch. 10, part 1; needs a video + OpenCV + a "
+        "vision model)",
+    )
+    video.add_argument(
+        "--video",
+        help=f"video file name from the book or a local path for --comment-video / --video-info "
+        f"(default: {DEFAULT_VIDEO})",
+    )
+    video.add_argument(
+        "--sample",
+        type=int,
+        help=f"frame sampling frequency for --comment-video (env MY_RAG_VIDEO_SAMPLE; "
+        f"default: {DEFAULT_VIDEO_SAMPLE}, the book's nb)",
+    )
+    video.add_argument(
+        "--build-video-index",
+        action="store_true",
+        help="embed the video-comment CSVs and upsert them into Qdrant, then exit "
+        "(ch. 10, part 2)",
+    )
+    video.add_argument(
+        "--video-info",
+        action="store_true",
+        help="download/inspect a video and write a thumbnail, then exit "
+        "(ch. 10, the visualization notebook)",
+    )
+    video.add_argument(
+        "--video-dir",
+        help=f"folder the chapter 10 videos are downloaded to (env MY_RAG_VIDEO_DIR; "
+        f"default: {DEFAULT_VIDEO_DIR})",
+    )
+    video.add_argument(
+        "--comments-dir",
+        help=f"folder of video-comment CSVs for --build-video-index / --comment-video "
+        f"(env MY_RAG_VIDEO_COMMENTS; default: {DEFAULT_VIDEO_COMMENTS})",
+    )
+    video.add_argument(
+        "--frames-dir",
+        help=f"folder for split frames and thumbnails (env MY_RAG_VIDEO_FRAMES; "
+        f"default: {DEFAULT_VIDEO_FRAMES})",
     )
     parser.add_argument("--list-providers", action="store_true", help="list registered providers and exit")
     return parser
@@ -1251,6 +1317,241 @@ def run_finetune_query(args, settings: Settings) -> int:
     return 0
 
 
+def collect_video_comments(args) -> int:
+    """Download the book's ready-made video-comment CSVs (ch. 10)."""
+    from .video import download_comments
+
+    output = Path(args.comments_dir) if args.comments_dir else Path(
+        os.environ.get("MY_RAG_VIDEO_COMMENTS") or DEFAULT_VIDEO_COMMENTS
+    )
+    print(f"downloading the book's video comments -> {output} ...", file=sys.stderr)
+    try:
+        paths = download_comments(
+            output, progress=lambda line: print(line, file=sys.stderr)
+        )
+    except Exception as exc:  # no network, unwritable path, ...
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if not paths:
+        print("error: no comment files downloaded", file=sys.stderr)
+        return 1
+    print(f"wrote {len(paths)} comment files to {output}", file=sys.stderr)
+    return 0
+
+
+def collect_videos(args) -> int:
+    """Download the book's stock videos (ch. 10)."""
+    from .video import VIDEO_FILES, download_video
+
+    output = Path(args.video_dir) if args.video_dir else Path(
+        os.environ.get("MY_RAG_VIDEO_DIR") or DEFAULT_VIDEO_DIR
+    )
+    names = VIDEO_FILES if not args.limit else VIDEO_FILES[: args.limit]
+    print(f"downloading {len(names)} videos -> {output} ...", file=sys.stderr)
+    try:
+        paths = [
+            download_video(name, output, progress=lambda line: print(line, file=sys.stderr))
+            for name in names
+        ]
+    except Exception as exc:  # no network, unwritable path, ...
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"wrote {len(paths)} videos to {output}", file=sys.stderr)
+    return 0
+
+
+def run_video_info(args, settings: Settings) -> int:
+    """Download/inspect a video and write a thumbnail (ch. 10, the visualization notebook)."""
+    from .video import DEFAULT_VIDEO, thumbnail, video_info
+
+    name = args.video or DEFAULT_VIDEO
+    frames_dir = Path(args.frames_dir) if args.frames_dir else settings.video_frames
+    video_dir = Path(args.video_dir) if args.video_dir else settings.video_dir
+    path = Path(name)
+    try:
+        if not path.is_file():  # a book video name, not a local path: download it first
+            from .video import download_video
+
+            path = download_video(name, video_dir, progress=lambda line: print(line, file=sys.stderr))
+        info = video_info(path)
+        output = thumbnail(
+            path, frames_dir / f"thumb_{path.stem}.jpg", frame_number=args.limit or 5
+        )
+    except Exception as exc:  # missing video, no OpenCV/Pillow, ...
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"Video: {info.file_name}")
+    print(f"Total number of frames: {info.frame_count}")
+    print(f"Frame rate: {info.frame_rate}")
+    print(f"Video duration: {info.duration:.2f} seconds")
+    print(f"thumbnail: {output}")
+    return 0
+
+
+def run_comment_video(args, settings: Settings) -> int:
+    """Split a video, comment sampled frames, and write the comment CSV (ch. 10, part 1)."""
+    from .video import DEFAULT_VIDEO, comment_video
+
+    name = args.video or DEFAULT_VIDEO
+    sample = args.sample or settings.video_sample
+    limit = args.limit if args.limit is not None else settings.video_limit
+    video_dir = Path(args.video_dir) if args.video_dir else settings.video_dir
+    comments_dir = Path(args.comments_dir) if args.comments_dir else settings.video_comments
+    frames_dir = Path(args.frames_dir) if args.frames_dir else settings.video_frames
+    path = Path(name)
+    output = Path(args.output) if args.output else comments_dir / f"{Path(name).name}.csv"
+    print(
+        f"commenting {name} (sample: {sample}, frames: {limit or 'all'}, "
+        f"vision: {settings.vision_model}) -> {output} ...",
+        file=sys.stderr,
+    )
+    try:
+        if not path.is_file():
+            from .video import download_video
+
+            path = download_video(name, video_dir, progress=lambda line: print(line, file=sys.stderr))
+        comments = comment_video(
+            path,
+            output,
+            settings,
+            frames_dir=frames_dir / path.name.split(".")[0],
+            sample=sample,
+            limit=limit,
+            progress=lambda line: print(f"  {line}", file=sys.stderr),
+        )
+    except Exception as exc:  # no OpenCV, vision model down, ...
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"wrote {len(comments)} comments -> {output}")
+    return 0
+
+
+def build_video_index(args, settings: Settings) -> int:
+    """Embed the video-comment CSVs and upsert them into Qdrant (ch. 10, part 2)."""
+    from .video import load_comments, open_video_index, upsert_comments
+
+    comments_dir = Path(args.comments_dir) if args.comments_dir else settings.video_comments
+    collection = args.collection or settings.video_collection
+    limit = args.limit
+    paths = sorted(comments_dir.glob("*.csv"))
+    print(
+        f"building Qdrant collection {collection} from {len(paths)} comment files in {comments_dir} ...",
+        file=sys.stderr,
+    )
+    index = None
+    try:
+        comments = load_comments(
+            paths,
+            limit=limit,
+            progress=lambda line: print(line, file=sys.stderr),
+        )
+        index = open_video_index(
+            settings, collection=args.collection, dimension=args.embedding_dimension
+        )
+        result = upsert_comments(
+            comments,
+            create_embedding_function(settings),
+            index,
+            collection=index.collection,
+            progress=lambda line: print(line, file=sys.stderr),
+        )
+    except Exception as exc:  # missing comments, embedding endpoint down, ...
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        if index is not None:
+            index.close()
+    print(
+        f"upserted {result.vectors} vectors ({result.comments} comments, "
+        f"{result.dimension}-dim) into {result.collection}",
+        file=sys.stderr,
+    )
+    return 0
+
+
+def print_video_report(report) -> None:
+    """Print the chapter 10 evaluator's metrics (the book's Pipeline 3 blocks)."""
+    stats = report.descriptive
+    print(f"Evaluation over {len(report.items)} queries:")
+    print(f"  Mean: {stats.mean:.2f}")
+    print(f"  Median: {stats.median:.2f}")
+    print(f"  Standard Deviation: {stats.std:.2f}")
+    print(f"  Variance: {stats.variance:.2f}")
+    print(f"  Minimum: {stats.minimum:.2f}")
+    print(f"  Maximum: {stats.maximum:.2f}")
+    print(f"  Range: {stats.range:.2f}")
+    print(f"  25th Percentile (Q1): {stats.q1:.2f}")
+    print(f"  75th Percentile (Q3): {stats.q3:.2f}")
+    print(f"  Interquartile Range (IQR): {stats.iqr:.2f}")
+    classification = report.classification
+    print(f"Classification (threshold {classification.threshold:.1f}):")
+    print(f"  F1 Score: {classification.f1:.2f}")
+    print(f"  Precision: {classification.precision:.2f}")
+    print(f"  Recall: {classification.recall:.2f}")
+    print(f"  Accuracy: {classification.accuracy:.2f}")
+    (tn, fp), (fn, tp) = classification.confusion
+    print(f"  Confusion matrix: TN={tn} FP={fp} FN={fn} TP={tp}")
+
+
+def run_video_query(args, settings: Settings) -> int:
+    """Answer ``args.query`` from the video-comment index, rewriting the hit (ch. 10, part 3)."""
+    from .video import EVALUATION_SAMPLE, DEFAULT_TOP_K, VideoExpert, open_video_index
+
+    args.top_k = args.top_k or DEFAULT_TOP_K
+    index = None
+    try:
+        index = open_video_index(
+            settings, collection=args.collection, dimension=args.embedding_dimension, create=False
+        )
+        print(
+            f"rag: video (collection: {index.collection}, top_k={args.top_k})",
+            file=sys.stderr,
+        )
+        expert = VideoExpert(settings, index, top_k=args.top_k)
+        if args.evaluate:
+            report = expert.evaluate(
+                EVALUATION_SAMPLE,
+                limit=args.limit,
+                progress=lambda done, total, query: print(
+                    f"  [{done}/{total}] {query}", file=sys.stderr
+                ),
+            )
+        else:
+            answer = expert.answer(args.query)
+    except Exception as exc:  # missing collection, embedding endpoint down, ...
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        if index is not None:
+            index.close()
+
+    if args.evaluate:
+        print_video_report(report)
+        return 0
+
+    if not answer.matches:
+        print(
+            "note: the collection is empty; run: python -m my_rag --build-video-index",
+            file=sys.stderr,
+        )
+    if args.show_context:
+        print("Retrieved context:")
+        print("---------------")
+        for match in answer.matches:
+            print(
+                f"[{match.id}] score {match.score:.4f} | frame {match.frame_number} | {match.file_name}"
+            )
+            print(textwrap.fill(match.text, width=args.width))
+            print()
+        print("---------------")
+    print(format_response(answer.response, width=args.width))
+    print()
+    if answer.label:
+        print(f"Label: {answer.label}")
+    print(f"Matches: {len(answer.matches)} | Response Time: {answer.elapsed:.2f} seconds")
+    return 0
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -1269,6 +1570,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.query = DEFAULT_DYNAMIC_QUERY
         elif args.rag == "finetune":
             args.query = DEFAULT_FINETUNE_QUERY
+        elif args.rag == "video":
+            args.query = DEFAULT_VIDEO_QUERY
         else:
             args.query = DEFAULT_QUERY
 
@@ -1300,6 +1603,10 @@ def main(argv: Optional[list[str]] = None) -> int:
         if args.corpus == "finetune":
             limit = args.limit or int(os.environ.get("MY_RAG_FINETUNE_LIMIT") or DEFAULT_FINETUNE_LIMIT)
             return collect_finetune_corpus(args, limit)
+        if args.corpus == "videos":
+            return collect_videos(args)
+        if args.corpus == "video-comments":
+            return collect_video_comments(args)
         return collect_corpus(Path(args.output) if args.output else DEFAULT_CORPUS, WIKI_URLS)
 
     if args.churn_report:
@@ -1317,6 +1624,15 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     if args.build_index:
         return build_vector_index(args, settings)
+
+    if args.build_video_index:
+        return build_video_index(args, settings)
+
+    if args.comment_video:
+        return run_comment_video(args, settings)
+
+    if args.video_info:
+        return run_video_info(args, settings)
 
     if args.fine_tune:
         return run_fine_tune(args, settings)
@@ -1340,6 +1656,9 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     if args.rag == "finetune":
         return run_finetune_query(args, settings)
+
+    if args.rag == "video":
+        return run_video_query(args, settings)
 
     if args.rag == "index":
         return run_index_query(args, settings)

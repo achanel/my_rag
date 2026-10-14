@@ -144,6 +144,32 @@ DEFAULT_MLX_ADAPTERS = Path("data/processed/finetune/adapters")
 #: How many MLX LoRA training iterations to run by default (``--iters``).
 DEFAULT_MLX_ITERS = 600
 
+#: Where chapter 10's stock videos are downloaded (git-ignored). The book pulls
+#: one video at a time from its GitHub repo (``Chapter10/videos``).
+DEFAULT_VIDEO_DIR = Path("data/raw/videos")
+
+#: Where chapter 10's frame comments (``<video>.mp4.csv``) are cached / written
+#: (git-ignored). The book downloads the 21 ready-made comment CSVs from
+#: ``Chapter10/comments``; ``--comment-video`` writes a new one here.
+DEFAULT_VIDEO_COMMENTS = Path("data/raw/video_comments")
+
+#: Where chapter 10 splits a video's frames (and writes thumbnails) (git-ignored).
+DEFAULT_VIDEO_FRAMES = Path("data/raw/video_frames")
+
+#: Chapter 10's Qdrant collection. The book names its Pinecone index
+#: ``videos-sports-us``; the same name is reused here as the Qdrant collection
+#: (``MY_RAG_VIDEO_COLLECTION`` overrides it).
+DEFAULT_VIDEO_COLLECTION = "videos-sports-us"
+
+#: The book's frame-sampling frequency for commenting (``nb`` in Pipeline 1).
+DEFAULT_VIDEO_SAMPLE = 3
+
+#: How many sampled frames ``--comment-video`` describes by default. The book
+#: comments every third frame of its ~208-frame videos (≈69 vision calls);
+#: on a local vision model each call is tens of seconds, so a smaller default
+#: keeps a run quick while ``--limit`` scales it to the whole video.
+DEFAULT_VIDEO_LIMIT = 6
+
 #: Where the Hugging Face access token is read from. The book keeps its token in
 #: a file and exports it as ``HF_TOKEN``; the default path is this machine's
 #: ``~/.config/hugging_face/token`` (override with ``MY_RAG_HF_TOKEN_FILE``, or
@@ -231,6 +257,12 @@ class Settings:
     mlx_data: Path = DEFAULT_MLX_DATA
     mlx_adapters: Path = DEFAULT_MLX_ADAPTERS
     mlx_iters: int = DEFAULT_MLX_ITERS
+    video_dir: Path = DEFAULT_VIDEO_DIR
+    video_comments: Path = DEFAULT_VIDEO_COMMENTS
+    video_frames: Path = DEFAULT_VIDEO_FRAMES
+    video_collection: str = DEFAULT_VIDEO_COLLECTION
+    video_sample: int = DEFAULT_VIDEO_SAMPLE
+    video_limit: int = DEFAULT_VIDEO_LIMIT
 
     @classmethod
     def from_env(
@@ -245,6 +277,7 @@ class Settings:
         vision_model: Optional[str] = None,
         embedding_dimension: Optional[int] = None,
         qdrant_collection: Optional[str] = None,
+        video_collection: Optional[str] = None,
     ) -> "Settings":
         """Build settings from explicit overrides, then env vars, then defaults."""
         provider = (provider or os.environ.get("MY_RAG_PROVIDER") or DEFAULT_PROVIDER).strip().lower()
@@ -271,6 +304,12 @@ class Settings:
             qdrant_collection
             or os.environ.get("MY_RAG_QDRANT_COLLECTION")
             or DEFAULT_QDRANT_COLLECTION
+        )
+
+        video_collection = (
+            video_collection
+            or os.environ.get("MY_RAG_VIDEO_COLLECTION")
+            or DEFAULT_VIDEO_COLLECTION
         )
 
         api_key = os.environ.get("OPENAI_API_KEY", "")
@@ -313,4 +352,12 @@ class Settings:
             mlx_data=Path(os.environ.get("MY_RAG_MLX_DATA") or DEFAULT_MLX_DATA),
             mlx_adapters=Path(os.environ.get("MY_RAG_MLX_ADAPTERS") or DEFAULT_MLX_ADAPTERS),
             mlx_iters=int(os.environ.get("MY_RAG_MLX_ITERS") or DEFAULT_MLX_ITERS),
+            video_dir=Path(os.environ.get("MY_RAG_VIDEO_DIR") or DEFAULT_VIDEO_DIR),
+            video_comments=Path(
+                os.environ.get("MY_RAG_VIDEO_COMMENTS") or DEFAULT_VIDEO_COMMENTS
+            ),
+            video_frames=Path(os.environ.get("MY_RAG_VIDEO_FRAMES") or DEFAULT_VIDEO_FRAMES),
+            video_collection=video_collection,
+            video_sample=int(os.environ.get("MY_RAG_VIDEO_SAMPLE") or DEFAULT_VIDEO_SAMPLE),
+            video_limit=int(os.environ.get("MY_RAG_VIDEO_LIMIT") or DEFAULT_VIDEO_LIMIT),
         )

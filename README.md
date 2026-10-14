@@ -11,7 +11,8 @@ extensible Python package — the notebooks stay as references, not as the code.
   notebook to the code and lists every command.
 - **`docs/atlas.html`** — a self-contained infographic (pipelines, retrievers,
   the chapter 5 feedback loop, the chapter 7 knowledge graph, the chapter 8
-  temporary Chroma session, the chapter 9 fine-tuning flow); open it in a browser.
+  temporary Chroma session, the chapter 9 fine-tuning flow, the chapter 10
+  video-comment pipeline); open it in a browser.
 - **`tests/`** — offline unit tests with fakes for Ollama, the vision model and
   the web fetch.
 
@@ -85,8 +86,9 @@ for its commands, substitutions and cleanup — the table below is the map.
 | [7 · Knowledge-Graph RAG](notebooks/07_knowledge_graph/README.md) | Wikipedia Marketing corpus → a LlamaIndex knowledge graph (triplets), re-ranked querying + metrics |
 | [8 · Dynamic RAG](notebooks/08_dynamic_rag_chroma_hf/README.md) | SciQ corpus → a temporary (ephemeral) Chroma collection, retrieval-accuracy metrics, a local Hugging Face Llama provider |
 | [9 · Fine-tuning](notebooks/09_fine_tuning/README.md) | SciQ → a chat fine-tuning JSONL; open-source local Apple MLX LoRA training, then run + compare against base/retrieval |
+| [10 · Video stock production](notebooks/10_video_stock_production/README.md) | Stock videos → frame comments (vision + OpenCV), a Qdrant comment index, and a rewriting "video expert" with an evaluator |
 
-`notebooks/10_…` is a placeholder for the remaining chapter.
+Every chapter is now implemented.
 
 ## How it works
 
@@ -112,6 +114,7 @@ Each chapter adds a new implementation of it, or a new backend:
 | 7 | a LlamaIndex knowledge graph (`my_rag.graph.GraphIndex`) |
 | 8 | none — `DynamicRAG` over the retrieved SciQ support (`my_rag.dynamic`) |
 | 9 | none — `FineTunedRAG` runs the local MLX adapter; `compare()` adds the base model and the chapter 8 retrieval (`my_rag.finetune`) |
+| 10 | a Qdrant comment collection (`my_rag.video.open_video_index`), wrapped by `VideoExpert` |
 
 ## Command line
 
@@ -136,6 +139,7 @@ python -m my_rag --no-stream --width 100 "..." # buffer + wrap instead of stream
 | `graph` | 7 | [link](notebooks/07_knowledge_graph/README.md) |
 | `dynamic` | 8 | [link](notebooks/08_dynamic_rag_chroma_hf/README.md) |
 | `finetune` | 9 | [link](notebooks/09_fine_tuning/README.md) |
+| `video` | 10 | [link](notebooks/10_video_stock_production/README.md) |
 
 `--provider openai` runs everything against OpenAI instead of Ollama;
 `--provider hf` generates with a local Hugging Face `transformers` pipeline
@@ -163,7 +167,14 @@ JSONL) and `MY_RAG_FINETUNE_LIMIT` (how many SciQ rows become examples), and the
 local MLX path reads `MY_RAG_MLX_DATA`, `MY_RAG_MLX_ADAPTERS` and
 `MY_RAG_MLX_ITERS`. The `hf` provider reads the Hugging Face token from
 `~/.config/hugging_face/token` (override with `MY_RAG_HF_TOKEN_FILE`, or set
-`HF_TOKEN` / `HUGGING_FACE_HUB_TOKEN`). Chapter 9 needs no key at all.
+`HF_TOKEN` / `HUGGING_FACE_HUB_TOKEN`). Chapter 9 needs no key at all. Chapter 10
+adds `MY_RAG_VIDEO_DIR` (video downloads), `MY_RAG_VIDEO_COMMENTS` (comment
+CSVs), `MY_RAG_VIDEO_FRAMES` (split frames/thumbnails), `MY_RAG_VIDEO_COLLECTION`
+(the Qdrant collection, default `videos-sports-us`), `MY_RAG_VIDEO_SAMPLE`
+(the frame-sampling rate) and `MY_RAG_VIDEO_LIMIT` (how many sampled frames
+`--comment-video` describes, default 6; 0 = all). The chapter uses only free,
+local tools — Ollama (vision/generation/embeddings), the local Qdrant engine and
+OpenCV — and never a token.
 
 ## Extending
 
@@ -180,12 +191,13 @@ local MLX path reads `MY_RAG_MLX_DATA`, `MY_RAG_MLX_ADAPTERS` and
 
 - `my_rag/` — the application package (`config`, `llm`, `embeddings`,
   `vectorstore`, `indexing`, `multimodal`, `adaptive`, `scaling`, `graph`,
-  `dynamic`, `finetune`, `collection`, `corpus`, `pipeline`, `retrieval`, `cli`).
+  `dynamic`, `finetune`, `video`, `collection`, `corpus`, `pipeline`, `retrieval`,
+  `cli`).
 - `notebooks/01_rag_overview` … `notebooks/10_video_stock_production` — one per
   chapter of the reference book; see each folder's `README.md`.
-- `tests/` — offline unit tests for chapters 4–9. Run with
+- `tests/` — offline unit tests for chapters 4–10. Run with
   `python -m unittest discover -s tests`.
-- `docs/atlas.html` — infographic for chapters 1–9.
+- `docs/atlas.html` — infographic for chapters 1–10.
 - `commons/` — shared helpers (API keys, HTTP sessions) extracted as you go.
 - `data/raw`, `data/processed` — input and derived datasets (git-ignored).
 - `models/` — local model checkpoints / cache (git-ignored).
@@ -211,4 +223,8 @@ path beyond `mlx-lm` (optional, `pip install "mlx-lm[train]"`, Apple silicon onl
 — not in `requirements.txt` so non-Apple installs keep working). The
 `deepspeed`/`bitsandbytes` stack stays unused. `huggingface-hub` is pinned to
 `<2` because `transformers` 5.17 requires it — don't let an `hf` CLI self-update
-bump it.
+bump it. Chapter 10 adds `opencv-python-headless` (free and local, no key) for
+splitting a video into frames and writing thumbnails; the comment index and the
+video expert also run from the book's public comment CSVs with neither a video
+nor the vision model. Frames are saved and read with the already-present
+`pillow`.

@@ -15,6 +15,7 @@ networkx==3.7
 numpy==2.5.3
 onnx==1.23.0
 openai==3.17.0
+opencv-python-headless==5.0.0.93
 pandas==3.0.6
 pillow==10.4.0
 pyvis==0.3.2
